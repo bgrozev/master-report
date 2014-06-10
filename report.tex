@@ -71,11 +71,11 @@
 This document is submitted as part of the requirements for obtaining a masters
 degree in informatics at the University of Strasbourg. It describes work done
 during a 6-months long internship. A modern video
-conferencing application based on WebRTC (\jm)is discussed, and a system for
+conferencing application based on WebRTC (\jm) is discussed, and a system for
 media recording, which I helped to design and implement, is examined in detail.
 The first section serves as an introduction to the work environment for the
-internship and the most important technologies discussed later on. The rest 
-of the sections examine specific parts of the media recording process.
+internship and the most important relevant standards and technologies. The rest 
+of the sections examine specific parts of the media recording system.
 \end{abstract}
 
 
@@ -129,8 +129,6 @@ get accustomed to the environment.
 
 \subsection{The \j\ family}
 \label{intro-jitsi}
-
-XXX expand: when jitsi started (sip-communicator)
 
 \j\ is a feature-rich internet communications client.
 It is free software, licensed under the LGPL\cite{lgpl}.
@@ -373,8 +371,10 @@ the "fake participant" approach.
 
 
 \section{The WebRTC transport layer}
-This section is about transporting media in webrtc. Uses ICE to establish a
+XXX This section is about transporting media in webrtc. Uses ICE to establish a
 UDP (or TCP) connection, then makes a DTLS/SRTP (in the case of media) stream.
+
+XXX Describe the libjitsi code structure (PacketTransformers)
 \subsection{RED}
 \subsection{ULPFEC}
 ULPFEC (stupid idea with re-writing sequence numbers. why adding FEC arbitrary to the stream makes it impossible to decode correctly. what webrtc does. how we handle it by just removing my stupid code). Diagrams
@@ -396,7 +396,80 @@ standard at the moment.
 
 \section{Recording video}
 \label{recording-video}
-\jm\ conferences use the VP8 codec for video.
+The WebRTC standards do not define a video codec which has to be supported by all clients. There
+has been a very long discussion at the IETF
+(XXX add link?)
+about whether to make a codec mandatory to implement (MTI), and if so, which one. The
+four main options suggested were
+\emph{(i) make the VP8 codec MTI};
+\emph{(ii) make the H264 codec MTI};
+\emph{(iii) have no MTI codecs};
+\emph{(iv) make both VP8 and H264 MTI}. No consensus has been reached.
+Nevertheless, currently VP8 is the de-facto standard codec for WebRTC, because
+it is the only codec supported by \wrtc (and therefore \jm).
+
+
+VP8 is a video compression format, defined in RFC6386\cite{vp8}. It was
+originally developed by \emph{On2 Technologies}, which was acquired by
+\emph{Google} in 2010. \emph{Google} published the specification and released a
+reference implementation (\emph{libvpx}) under a BSD-like opensource
+license. They also provided a statement granting permission for royalty-free
+use of any of their patents used in
+\emph{libvpx}\footnote{http://www.webmproject.org/license/additional/}.
+
+
+Both VP8 in general and \emph{libvpx} work exclusively with the I420 raw
+(uncompressed) image format\footnote{http://www.fourcc.org/yuv.php\#IYUV}.
+There is an encoder, which takes as input an I420 image and produces a "VP8
+Compressed Frame". Similarly, a decoder reads VP8 compressed frames and
+produces I420 images.
+
+A separate specification\cite{vp8rtp} defines how to transport a VP8 compressed
+frame over RTP. In short, the process involves optionally splitting a VP8
+compressed in parts, adding a structure known as a VP8 Payload Decriptor to
+each part, and then encapsulating each part in RTP. This process is reffered to
+as packetization, and the reverse process (of collecting RTP packets and
+constructing VP8 compressed frames)-- depacketization. Figure \ref{vp8-scheme}
+provides a high-level overview of the use of VP8 with RTP.
+
+\begin{figure}[h]
+    \includegraphics[width=0.9\textwidth]{./pics/vp8.eps}
+    \label{vp8-scheme}
+\end{figure}
+
+M-bit, beginnging of frame, all packets in a frame have same RTP TS
+(and specifically \emph{libvpx}), there are two main entities: an encoder and a decoder. The encoder reads raw video frames (images in 
+
+, an encoder produces "VP8 compressed frames" The transport of VP8 over RTP is being defined in the "payload-vp8" draft\cite{vp8rtp}. 
+
+
+
+\j\ has a rudimentary VP8 implementation\footnote{Which I added in early
+2013.}, but it is not compatible with the specification (and not compatible
+with \emph{webrtc.org}). It has four parts: a Decoder, Encoder, Packetizer and
+DePacketizer. The first two deal with converting a VP8 compressed frame into
+an uncompressed image and vice-versa (using \emph{libvpx}\footnote{\url{http://www.webmproject.org/code/}}). The Packetizer splits a VP8 frame into
+RTP packets, and the DePacketizer collects RTP packets and constructs a VP8
+compressed frame.
+
+I reviewed the existing code and we decided to only fix the DePacketizer at
+this point. This is enough for the purposes of recording and should make our
+implementation compatible with \emph{webrtc.org}.
+
+I also reviewed the \emph{webrtc.org} code to see if we can reuse something. I found that the
+only thing which we can directly reuse is the Packetizer. For the DePacketizer,
+it is easier to modify our existing one.
+
+
+The actual implementation of the new DePacketizer took only two or three days and there
+weren't any difficulties. 
+
+Later on we might continue this work by improving the other parts. Notably, we
+can add support for Packet Loss Concealment (PLC), retransmissions (RTX) and
+other quality improvement techniques.
+
+
+
 VP8 stuff
 
 When we were choosing a container format for the video recordings, we considered three options.
@@ -404,6 +477,8 @@ The first was to use the very simple and limited \emph{ivf} format. This is a vi
 that comes from the \emph{libvpx} test-suite and example applications. The second option was to use \emph{webm}.
 ivf, webm, our own format.
 Webm stuff
+
+requesting keyframes 
 
 How do we timestamp frames -- easy compared to audio
 
@@ -556,61 +631,10 @@ Jipopro
 
 \end{document}
 
-\subsection{Recording a conference on \jvb}
-The main project on which I have worked since the beginning of the internship
-is allowing for a multimedia conference to be recorded by \jvb. Most of the
-specific tasks that follow are required by this general goal, and reaching it
-is their primary motivation.
-
-For each conference that \jvb\ manages, it receives multiple RTP streams
-(generally one audio and one video stream from each participant). For the video
-streams it acts as an RTP Translator (as defined in Section 7 in \cite{rtp}). That is, it just forwards RTP packets (re-encrypting them, if necessary), without considering their payload.
-For audio streams it can run either as a Translator or as a Mixer (again
-defined in Section 7 in \cite{rtp}), depending on runtime configuration. 
-When it runs as a Mixer, it decodes all received audio
-streams, creates a different "mix" for each participant, encodes that mix and sends
-it (and only it) to that participant.
-
-Relaying audio consumes more bandwidth, but is less computationally intensive for \jvb.
+XXX: Relaying audio consumes more bandwidth, but is less computationally intensive for \jvb.
 
 \medskip
-%XXX add picture?
-
-\subsection{Improve the VP8 implementation}
-VP8 is a video compression format, defined in RFC6386\cite{vp8} (with the RTP payload format defined in \cite{vp8rtp}). It is one of the two main video codecs
-considered for WebRTC and
-the only video codec implemented in
-\emph{webrtc.org}. Having a \emph{webrtc.org}-compatible implementation of VP8
-is necessary in order to make recordings. Additionally, it can be used later to
-connect the desktop \j\ client to a WebRTC endpoint (for example, add it to a
-\jm\ conference).
-
-
-\j\ has a rudimentary VP8 implementation\footnote{Which I added in early
-2013.}, but it is not compatible with the specification (and not compatible
-with \emph{webrtc.org}). It has four parts: a Decoder, Encoder, Packetizer and
-DePacketizer. The first two deal with converting a VP8 compressed frame into
-an uncompressed image and vice-versa (using \emph{libvpx}\footnote{\url{http://www.webmproject.org/code/}}). The Packetizer splits a VP8 frame into
-RTP packets, and the DePacketizer collects RTP packets and constructs a VP8
-compressed frame.
-
-I reviewed the existing code and we decided to only fix the DePacketizer at
-this point. This is enough for the purposes of recording and should make our
-implementation compatible with \emph{webrtc.org}.
-
-I also reviewed the \emph{webrtc.org} code to see if we can reuse something. I found that the
-only thing which we can directly reuse is the Packetizer. For the DePacketizer,
-it is easier to modify our existing one.
-
-
-The actual implementation of the new DePacketizer took only two or three days and there
-weren't any difficulties. 
-
-Later on we might continue this work by improving the other parts. Notably, we
-can add support for Packet Loss Concealment (PLC), retransmissions (RTX) and
-other quality improvement techniques.
-
-\subsection{RED}
+subsection{RED}
 RFC2198\cite{red} defines an RTP payload-type that allows the encapsulation of one or more "virtual" RTP packets in a single RTP packet. It is intended to be used with redundancy data.
 
 In \wrtc, RED is used for video streams. Its use is negotiated as a regular media format and it does not have a static payload-type number, so a dynamic number is assigned during negotiation. In the case of a
