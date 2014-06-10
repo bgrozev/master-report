@@ -316,28 +316,59 @@ XXX able to install your own \jm
 
 \subsection{Recording}
 \label{intro-recording}
-By recording a multimedia conference I mean the following: all the received streams are saved to
-disk in some format, then post-processing is performed on them, resulting in a
-single file (with video and audio). In the final file, all the audio
-streams are mixed together, while the videos are composited together somehow. The exact way that
-the videos are composed depends on post-processing options, but generally one of the videos is shown in full resolution, while the others are scaled down and overlaid on top of it (similar to
-what the \jm\ interface looks like). One additional goal is to change the
-full-resolution video depending on the participant who is speaking, but more on that in section \ref{dsd}.
+By recording a multimedia conference in general we mean the following: all the
+audio and video involved in the conference
+is saved to disk in some format, in a way which allows the whole conference to
+be played back later on.
 
-\begin{enumerate}
-\item{Record individul files}
-\item{Record metadata (timing info)}
+\medskip
+In our specific case, the recording of a conference has three main parts:
+\begin{itemize}
+\item{Recording media}
+\item{Recording metadata}
 \item{Post-processing}
-\end{enumerate}
+\end{itemize}
+
+Recording of the media is the process in which the audio and video RTP streams
+in the conference are converted to a convenient format and saved to disk. There
+are many different ways in which this can be done. Our final solution (and some
+of the ideas that didn't work) are discussed in detail in
+sections \ref{recording-video} and \ref{recording-audio}.
+
+Recording of metadata means saving additional information (apart from the media
+itself) which is necessary to play back the conference later. This includes
+timing information, participant names and changes of the active speaker. There
+is a detailed discussion of the
+metadata that we use in section \ref{recording-metadata}.
+
+Post-processing in our case means taking all the recorded data and producing a
+single file with one audio track and one video track. The specifics depend on
+configuration, but
+generally all audio is mixed together, and the videos are combined in a way to
+resemble the \jm\ interface. Appendix \ref{jipopro} discusses the
+post-processing application.
 
 
 \paragraph*{Where does recording happen?}
-on the bridge
-XXX expanding colibri to request that recording is started for a conference.
+As can be seen in figure \ref{jitmeet-med}, in a \jm\ conference both \jvb\ and
+all the participants have access to the RTP streams, and so could potentially
+perform recording.
 
-in a separate application (jirecon)
+Since the participating clients are running an application within their
+browser, if we want one of them to do recording, we would need modifications to
+the browsers (which is undesirable). To avoid this, a "fake participant" can
+be added to the conference, which does not not actually participate in the conference
+(does not send audio or video), and does not run in a browser.
 
-most of the code is in \lj and is reused in the two cases
+Recording directly on \jvb\ is more straightforward, so our initial
+implementation was focused on that. However, most of the code resides in \lj, allowing
+it to be easily reused.
+
+Li Shunyang, a student from Peking University, is currently working, under the
+Google Summer of Code program, on a recording
+application\footnote{https://github.com/jitsi/jirecon} which uses
+the "fake participant" approach.
+
 
 
 
@@ -364,6 +395,7 @@ standard at the moment.
 \subsection{Retransmissions}
 
 \section{Recording video}
+\label{recording-video}
 \jm\ conferences use the VP8 codec for video.
 VP8 stuff
 
@@ -388,6 +420,7 @@ Partial vp8 frames -- nothing done so far, only discussions
 Requesting keyframes
 
 \section{Recording audio}
+\label{recording-audio}
 We tried mixing streams live -- difficult to sync
 
 Decided to record them separately
@@ -406,6 +439,7 @@ FEC (opus): how it works. when we reencode audio, we take advantage of it automa
 
 diagram: how would it look with ogg/opus
 \section{Recording metadata}
+\label{recording-metadata}
 What is the metadata used for. Sample JSON
 
 Important information: filenames and timestamps
@@ -517,6 +551,7 @@ XXX Crap, I almost forgot about this!
 
 \appendix
 \section{Post-processing}
+\label{jipopro}
 Jipopro
 
 \end{document}
