@@ -8,6 +8,8 @@
 
 % Utilisation de tableaux
 \usepackage{tabularx}
+\usepackage{listings}             % Include the listings-package
+ \lstset{language=Java}          % Set your language (you can change the language for each code-block optionally)
 
 \usepackage{subcaption}
 \usepackage{wrapfig}
@@ -437,62 +439,137 @@ provides a high-level overview of the use of VP8 with RTP.
     \label{vp8-scheme}
 \end{figure}
 
-M-bit, beginnging of frame, all packets in a frame have same RTP TS
-(and specifically \emph{libvpx}), there are two main entities: an encoder and a decoder. The encoder reads raw video frames (images in 
+\lj\ already has a VP8 implementation, which is used in the \j client and
+consists of four parts: an encoder and decoder (wrappers around \emph{libvpx}),
+a packetizer and a depacketizer. For the purposes of recording, we need 
+only a depacketizer. We found that the existing depacketizer is not compliant with
+the specification, and also not compatible with \wrtc. We decided to re-write it from scratch.
 
-, an encoder produces "VP8 compressed frames" The transport of VP8 over RTP is being defined in the "payload-vp8" draft\cite{vp8rtp}. 
+\paragraph*{The depacketizer}
+The VP8 Payload Descriptor contains, among others, the following fields.
+\begin{itemize}
+\item \emph{S}-bit: start of VP8 partition, set only if the first byte of the payload of the packet is the first byte of a VP8 partition.
+\item \emph{PID}: Partition ID, specifies the ID of the VP8 parition to which the first byte of the payload of the packet belongs.
+\item \emph{PictureID}: A running index of frames, incremented by 1 for each subsequent VP8 frame.
+\end{itemize}
+
+Apart from this, the depacketizer also uses the following fields from the RTP header:
+\begin{itemize}
+\item \emph{Timestamp}: a 32-bit field specifying a generation timestamp of the payload. For VP8, all RTP packets from a given frame have the same timestamp.
+\item \emph{Sequence number}: An index of RTP packets.
+\item \emph{M}-bit: set for the last RTP packet of a frame (and only for it).
+\end{itemize}
+
+We implemented the algorithm suggested in the specification: we buffer RTP
+packets locally, until we receive a packet from a new frame. At this point, we
+check whether the buffer contains a full VP8 frame, and if it does we output
+it. Otherwise, we drop the buffer and start to collect packets for the next
+frame.
+
+In order to decide whether a received packet is from a new frame or not, the
+RTP timestamp and the \emph{PictureID} fields are used (if either don't match,
+then it's a new frame). 
+
+The \emph{PID} and \emph{S} fields from the VP8 Payload Descriptor allow us to
+detect the first packet from a frame -- the first, and only the first packet
+will have both the \emph{S}-bit set and \emph{PID} set to 0.
+
+This allows us to easily check whether we have a full packet
+in the buffer or not: we have a full packet if: \emph{(i) we have the beginning
+of a frame}; \emph{(ii) we have the end of a frame (a packet with the M-bit
+set)}; and \emph{(iii) we have
+all RTP sequence numbers inbetween}.
+
+The following pseudo-code illustrates the procedure.
+
+\begin{lstlisting}[frame=single]  % Start your code-block
+hack
+receive(Packet p){
+    if (!belongsToBuffer(p))
+        flush();
+    push(p);
+
+    if (haveFullFrame())
+        outputFrame();
+}
+
+belongsToBuffer(p){
+    if (bufferEmpty())
+        return true;
+    else if (bufferRtpTimestamp == p.RtpTimestamp 
+             && bufferPictureID == p.PictureID)
+        return true;
+    return false;
+}
+
+haveFullFrame(){
+    if (! (buffer.first.S && buffer.first.PID == 0))
+        return false;
+    if (!buffer.last.M)
+        return false;
+    for (int i=buffer.first.seq; i<=buffer.last.seq; i++)
+        if (!buffer.contains(i))
+            return false;
+    return true;
+}
+\end{lstlisting}
+
+
+\paragraph*{Jitter buffer?}
+\paragraph*{Container format}
+After depacketization, we are left with a stream of VP8 Compressed Frames. We needed to decide how to store them on disk. We considered three options:
+\begin{itemize}
+\item Use the \emph{ivf} container format
+\item Define and use our own container format
+\item Use the \emph{webm} container format
+\end{itemize}
+
+The \emph{ivf} format is a very simple video-only, VP8-only storage format. It
+was developed with \emph{libvpx} for the purposes of testing the
+implementation. It precedes each frame with a fixed-size header containing just
+the length of the frames and a presentation timestamp. The only advantage of
+using this format is the relative simplicity of it's implementation. The disadvantages
+include that it is not supported by many players (for example browsers support it), and
+that it's simplicity might be limiting our future needs.
+
+Defining our own container format has one advantage, and that's the possibility
+to design it in a way that allows partial VP8 frames. The \emph{libvpx} decoder
+has a mode which allows it to decode a frame even if parts of it are missing.
+In order to use this API, however, the decoder needs to be provided with
+information about which parts (which VP8 partitions) are missing, and this
+information would be lost if we use \emph{ivf} or \emph{webm}. The
+disadvantages of this approach are the complexity that it brings, and the
+inflexibility with regards to the players -- we'd need to implement our own
+decoder (probably to be used in post-processing).
+
+The \emph{webm}\footnote{http://www.webmproject.org/about/} format is a subset of
+\emph{matroska}\footnote{http://www.matroska.org/}. It has been designed
+specifically to contain VP8 (possibly interleaved with audio) and to be played
+in browsers. It allows for much more flexibility than \emph{ivf}. The main advantage
+is that it can be played by many players.
+
+\smallskip
+After some research, we found a library that would allow us to write \emph{webm} files
+very easily, so we decided to ignore \emph{ivf}, postpone the potential
+definition of a new format, and use \emph{webm}. 
+
+XXX timestamps
+
+XXX diagraam: transformers -> jitter buffer -> depacketizer -> webmdatasink
+
+\paragraph*{Requesting keyframes}
+VP8 has two types of frames: I-frames (or keyframes) which can be decoded
+without any other context, and P-frames, whose decoding depends on previously
+decoded frames. Therefore a VP8 decoder needs a keyframe before it can decode
+frames. For this reason we want to always start the recorded files with a
+keyframe.
+
+
+XXX Note: no decoding/encoding.
 
 
 
-\j\ has a rudimentary VP8 implementation\footnote{Which I added in early
-2013.}, but it is not compatible with the specification (and not compatible
-with \emph{webrtc.org}). It has four parts: a Decoder, Encoder, Packetizer and
-DePacketizer. The first two deal with converting a VP8 compressed frame into
-an uncompressed image and vice-versa (using \emph{libvpx}\footnote{\url{http://www.webmproject.org/code/}}). The Packetizer splits a VP8 frame into
-RTP packets, and the DePacketizer collects RTP packets and constructs a VP8
-compressed frame.
 
-I reviewed the existing code and we decided to only fix the DePacketizer at
-this point. This is enough for the purposes of recording and should make our
-implementation compatible with \emph{webrtc.org}.
-
-I also reviewed the \emph{webrtc.org} code to see if we can reuse something. I found that the
-only thing which we can directly reuse is the Packetizer. For the DePacketizer,
-it is easier to modify our existing one.
-
-
-The actual implementation of the new DePacketizer took only two or three days and there
-weren't any difficulties. 
-
-Later on we might continue this work by improving the other parts. Notably, we
-can add support for Packet Loss Concealment (PLC), retransmissions (RTX) and
-other quality improvement techniques.
-
-
-
-VP8 stuff
-
-When we were choosing a container format for the video recordings, we considered three options.
-The first was to use the very simple and limited \emph{ivf} format. This is a video-only format
-that comes from the \emph{libvpx} test-suite and example applications. The second option was to use \emph{webm}.
-ivf, webm, our own format.
-Webm stuff
-
-requesting keyframes 
-
-How do we timestamp frames -- easy compared to audio
-
-diagraam: transformers -> jitter buffer -> depacketizer -> webmdatasink
-
-Comparison with the WebRTC stack?
-
-Note: no decoding/encoding.
-
-Jitter buffer stuff goes here
-
-Partial vp8 frames -- nothing done so far, only discussions
-
-Requesting keyframes
 
 \section{Recording audio}
 \label{recording-audio}
