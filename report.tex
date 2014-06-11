@@ -142,13 +142,9 @@ into a multi-protocol
 client (XMPP, AIM, Yahoo! and ICQ are now also supported) with a very wide variety
 of features: instant messaging (IM), video calls, desktop streaming,
 conferencing (multi-party, both audio and video), cross-protocol calls (SIP to
-XMPP), configuration provisioning, media encryption (with SRTP, setup via SDES,
-ZRTP or DTLS/SRTP), many audio and video codecs, echo cancellation, session
-establishment using ICE, chat sessions encrypted using OTR, file transfers.
-Most of the development comes from \bj.
-
-XXX too much features listed?
-XXX clean the above paragraph
+XMPP), media encryption (SRTP),
+session establishment using ICE, file transfers and more.
+Most of the development is financed by \bj.
 
 \j\ is written mostly in Java and runs on a variety of
 platforms (Windows, Linux, MacOSX and Android). The various projects comprise a massive codebase--
@@ -156,7 +152,10 @@ over 700 000 lines of Java code alone.
 
 A big part of the code which was originally in \j\ is now split into a
 separate library-- \emph{libjitsi}. This allows it to be easily reused in other
-projects, such as \jvb. The code in \lj\ deals mainly with multimedia-- capture and rendering, transcoding, encryption/decryption and transport over the network of audio and video date. It contains the RTP stack for \j\ (partially implemented in \lj\ itself, partially delegated to FMJ).
+projects, such as \jvb. The code in \lj\ deals mainly with multimedia-- capture
+and rendering, transcoding, encryption/decryption and transport over the
+network of audio and video data. It contains the RTP stack for \j\ (partially
+implemented in \lj\ itself, partially in the external FMJ library).
 
 \jvb\ is a server-side application which acts as a media
 relay and/or mixer. It allows a smart client to organize a conference
@@ -166,7 +165,7 @@ participating clients need not be aware that \jvb\ is in use (for example they
 can be simple SIP clients). Since the end of 2013 \jvb\ supports ICE and is WebRTC-compatible.
 
 One of the latest additions to the \j\ family is
-\jm\footnote{\url{https://jitsi.org/Projects/Jitsi-Meet}}. This is a WebRTC %XXXverify the URL
+\jm\footnote{\url{https://jitsi.org/Projects/JitsiMeet}}. This is a WebRTC
 application, which runs completely within a browser and creates a video
 conference using a \jvb\ instance to relay the media.
 
@@ -176,10 +175,10 @@ conference using a \jvb\ instance to relay the media.
 \subsection{WebRTC}
 WebRTC (Web Real-Time Communications) is a set of specifications 
 currently in development, that allow browsers which implement them to open
-"peer connections" to other browsers. These are direct connections between two
+"peer connections". These are direct connections between two
 browsers (a webserver is used only to setup the connection), and can be used to
 send audio, video or application data. The specifications are open and are meant
-to be implemented in the browsers themselves (as opposed to in additional
+to be implemented in the browsers themselves (without the need for additional
 plug-ins).
 
 WebRTC is divided in two main parts: the JavaScript standard APIs, being defined within
@@ -187,15 +186,15 @@ the \emph{WebRTC} working group\cite{webrtc-wg} at W3C,
 and the on-the-wire protocols, being defined within
 the \emph{RTCWEB} working group\cite{rtcweb-wg} at the IETF.
 
-If implemented, these standards provide web developers with a very powerful tool, which
-can be used to create rich real-time multimedia applications very easily. They
+These standards provide web developers with a very powerful tool, which
+can be used to easily create rich real-time multimedia applications. They
 also allow for some very interesting and more complicated use-cases.
 
 The specifications are still being developed, but are already at an advanced stage. There is
 an open-source implementation of the network protocols, provided by Google with
 a BSD-like license. I will refer to this implementation as \emph{webrtc.org}
 (which is the domain name of the project). Currently all browsers implementing
-WebRTC (Chrome/Chromium and Mozilla Firefox) 
+WebRTC (Chrome/Chromium, Opera and Mozilla Firefox) 
 use \emph{webrtc.org} as their base. Because of this, \wrtc\ is very important -- it is
 used for all practical compatibility testing, making it the de-facto reference implementation.
 
@@ -207,16 +206,16 @@ Extensible Messaging and Presence Protocol (XMPP)\cite{rfc6120} is a mature,
 XML-based protocol which allows endpoints
 to exchange messages in near real-time. The core XMPP protocol only covers instant messaging (that is the exchange of
 text messages meant to be read by humans), but there are a variety of extensions that allow the protocol
-to cover a wide range of use cases. Many such extensions are published as XMPP Extension Protocols (XEPs), and there are XEPs which allow for
+to cover a wide range of use cases. Many such extensions are published as XMPP Extension Protocols (XEPs), and there are XEPs for
 group chats, user avatars, file transfers, account registration, transporting
-XMPP over HTTP, discovering node capabilities, management of  wireless sensors (provisioning, control, data collection),
+XMPP over HTTP, discovery of node capabilities, management of  wireless sensors (provisioning, control, data collection),
 and, most relevant here, internet telephony.
 
-\emph{Jingle}\cite{jingle166, jingle167} 
+\emph{Jingle} (define in XEP-0166\cite{jingle166} and XEP-0167\cite{jingle167})
 is a signalling protocol, serving a purpose similar to that of SIP: it uses an
 offer-answer model to setup an RTP session. Many of the
-protocols often used with SIP, such as ICE\cite{ice}, ZRTP, DTLS-SRTP, and
-RFC4575 can also be used with \emph{Jingle}. Mappings
+protocols often used with SIP, such as ICE\cite{ice}, ZRTP\cite{zrtp}, DTLS-SRTP\cite{dtls-srtp}, and
+RFC4575\cite{rfc4575} can also be used with \emph{Jingle}. Mappings
 have been defined between the two\cite{stoxmedia}, which allow gateways or rich
 clients to organize cross-protocol calls.
 
@@ -230,10 +229,10 @@ clients to organize cross-protocol calls.
 COnferencing with LIghtweight BRIdging (COLIBRI\cite{colibri}) is an extension
 developed mostly in \bj\ for use with \jvb. It provides a way for a client to control a multimedia
 relay or mixer, such as \jvb. It works with the concept of a \emph{conference}, which contains
-\emph{channels}, separated in different \emph{contents} (see fig.\ref{colibri-conf}). A
-client requests the creation of a \emph{conference} with a specified number of
+\emph{channels}, separated in different \emph{contents} (see fig.\ref{colibri-conf}).
+In the most common use case a client requests the creation of a \emph{conference} with a specified number of
 channels. The mixer allocates local sockets for each \emph{channel} and
-provides their addresses to the client. The client can then use these transport
+provides their addresses to the client. The client then uses these transport
 addresses as its own to establish, for example, a \emph{Jingle} call. 
 Instead of just allocating local sockets, the ICE protocol can be used, in
 which case the mixer provides a list of ICE candidates for each \emph{channel}.
@@ -246,7 +245,7 @@ media is allowed to flow) of an existing \emph{channel}.
 
 
 
-\subsection{A \jm\ conference}
+\subsection{\jm}
 \label{intro-jm}
 \jm\ uses the above-mentioned technologies to create a multi-party video conference.
 The endpoints of the conference are simply WebRTC-enabled
@@ -255,7 +254,7 @@ supported.} running the actual \jm\ application. They all connect to an XMPP
 server and join a Multi-User Chat (MUC) chatroom. One of the participants (the
 first one to enter the chatroom) assumes the role of organizer (or focus).
 
-The focus creates a COLIBRI conference on a \jvb\ instance $jvb$, and allocates
+The focus creates a COLIBRI conference on a \jvb\ instance (\emph{jvb}), and allocates
 two COLIBRI channels for each participant (one for audio, and one for video).
 Then, it initiates a separate \emph{Jingle} session with
 each participant, using the
@@ -263,10 +262,11 @@ transport information (i. e. the list of ICE candidates) obtained from $jvb$
 instead of its own. When the participants accept the Jingle sessions, they in
 effect perform ICE and establish direct RTP sessions with $jvb$.
 
-The resulting connections are depicted in Figures \ref{jitmeet-sig} and \ref{jitmeet-med}.
+The resulting connections for signalling and media are depicted in Figures
+\ref{jitmeet-sig} and \ref{jitmeet-med} respectively.
 
 
-XXX update figures
+XXX update pictures
 \begin{figure}[h]
    \centering
         \begin{subfigure}[t]{0.4\textwidth}
@@ -301,8 +301,9 @@ the user joins it (possibly after entering a password for the conference).
 When in a conference, the interface has two main elements: one big video
 (taking all available space) and, overlayed on top of it,
 scaled down versions of the videos of all other participants. Figure
-\ref{jm-ss} is a screenshot from the actual application. The video shown in
-full changes, according to who is currently speaking.
+\ref{jm-ss} is a screenshot from the actual application. Current work is underway to
+use dominant speaker identification (see section \ref{dsd}) to change the video
+shown in full size to the person currently speaking.
 
 \begin{figure}[h]
     \includegraphics[width=1\textwidth]{./pics/jm-ss.eps}
@@ -310,21 +311,28 @@ full changes, according to who is currently speaking.
     \caption{A screen capture from a \jm\ conference.}
 \end{figure}
 
-XXX able to install your own \jm
+\medskip
+In contrast to other products for video conferencing over the internet, the
+whole infrastructure needed to run \jm\ can be installed in a custom
+environment. The only services which are needed are a web server
+(only serving static content), an XMPP server, and an instance of \jvb. This
+makes \jm\ very suitable for businesses (or even individuals) who want full
+control over their conferencing solution.
 
 
 
 \subsection{Recording}
 \label{intro-recording}
 By recording a multimedia conference in general we mean the following: all the
-audio and video involved in the conference
+audio and video from the conference
 is saved to disk in some format, in a way which allows the whole conference to
 be played back later on.
 
 \medskip
-In our specific case, the recording of a conference has three main parts:
+In our specific case, the recording of a conference has four main parts:
 \begin{itemize}
-\item{Recording media}
+\item{Recording video}
+\item{Recording audio}
 \item{Recording metadata}
 \item{Post-processing}
 \end{itemize}
@@ -336,7 +344,7 @@ of the ideas that didn't work) are discussed in detail in
 sections \ref{recording-video} and \ref{recording-audio}.
 
 Recording of metadata means saving additional information (apart from the media
-itself) which is necessary to play back the conference later. This includes
+itself) which is necessary to play back the conference later. This includes filenames,
 timing information, participant names and changes of the active speaker. There
 is a detailed discussion of the
 metadata that we use in section \ref{recording-metadata}.
@@ -354,30 +362,110 @@ As can be seen in figure \ref{jitmeet-med}, in a \jm\ conference both \jvb\ and
 all the participants have access to the RTP streams, and so could potentially
 perform recording.
 
+\begin{wrapfigure}{R}{0.5\textwidth}
+   \centering
+        \includegraphics[width=0.4\textwidth]{./pics/jm-rec.eps}
+        \caption{A recording application connected to a \jm\ conference as a "fake" participant.}
+   \label{jitmeet-rec}
+\end{wrapfigure}
+
 Since the participating clients are running an application within their
 browser, if we want one of them to do recording, we would need modifications to
-the browsers (which is undesirable). To avoid this, a "fake participant" can
-be added to the conference, which does not not actually participate in the conference
-(does not send audio or video), and does not run in a browser.
+the browsers which is undesirable. To avoid this, a "fake" participant can
+be added, which does not not actually participate in the conference
+(does not send audio or video), and does not run in a browser. Still, it
+connects as a normal participant and establishes an RTP session with \jvb\ (see
+figure \ref{jitmeet-rec}).
+
 
 Recording directly on \jvb\ is more straightforward, so our initial
 implementation was focused on that. However, most of the code resides in \lj, allowing
 it to be easily reused.
 
 Li Shunyang, a student from Peking University, is currently working, under the
-Google Summer of Code program, on a recording
-application\footnote{https://github.com/jitsi/jirecon} which uses
-the "fake participant" approach.
+Google Summer of Code program, on
+a recording
+application which uses the fake participant approach--
+ \emph{Jirecon}\footnote{https://github.com/jitsi/jirecon}.
 
 
 
+\section{The WebRTC transport layer XXX rename (s/WebRTC//?)}
+The documents from the RTCWEB working group at the IETF specify how multimedia
+is to be transported between WebRTC endpoints. In the most part existing
+standards are reused.
 
-\section{The WebRTC transport layer}
+It is mandatory to use the Interactive Connectivity Establishment (ICE\cite{ice}) protocol to
+establish a session. This assures that an endpoint will not send any media
+before it has receive consent (in the form of a STUN message) from the remote
+side. This protects against possible traffic augmentation attacks, in which a malicious
+web-server causes browsers to send large amounts of data (e.g. a video stream) to a
+target.
+
+After a connection is established using ICE, a DTLS-SRTP session is started.
+This means that the endpoints use Datagram TLS (DTLS\cite{dtls})
+%XXX add dtls to bib
+to exchange key material, which is then used to generate session keys for an
+Secure Real-Time Protocol (SRTP\cite{srtp})
+%XXX add srtp to bib
+session. The procedure is defined in RFC5763\cite{rfc5763}.
+%XXX add rfc5763 to bib
+In a \jm\ conference, each participant's browser setups two SRTP sessions with
+\jvb\ in this way.
+
+
 XXX This section is about transporting media in webrtc. Uses ICE to establish a
 UDP (or TCP) connection, then makes a DTLS/SRTP (in the case of media) stream.
 
+\subsection{The RTP stack in \lj}
 XXX Describe the libjitsi code structure (PacketTransformers)
+\begin{wrapfigure}{R}{4cm}
+   \centering
+        \includegraphics[width=3cm]{./pics/lj-pt.eps}
+        \caption{The chain of \emph{PacketTransformer}s in \lj. The shaded elements are new additions added while implementing the recording functionality.}
+   \label{colibri-conf}
+\end{wrapfigure}
+
+
+\begin{wrapfigure}{R}{10cm}
+    \centering
+    \includegraphics[width=10cm]{./pics/lj.eps}
+    \label{lj-scheme}
+    \caption{General scheme of the RTP stack in \lj.}
+\end{wrapfigure}
+
 \subsection{RED}
+RFC2198\cite{red} defines an RTP payload-type that allows the encapsulation of
+one or more "virtual" RTP packets in a single RTP packet. It is intended to be
+used with redundancy data. Its use is negotiated as a regular media format and
+it does not have a static payload-type number, so a dynamic number is assigned
+during negotiation.
+
+In \wrtc, RED is supported and used for video streams. In the case of a \jm\
+conference, it is negotiated between the clients, and \jvb\ has no way of
+affecting its use or its payload-type number, because it does not actively
+participate in the offer/answer procedure. This means that in order to record
+video, the recorder has to understand RED.
+
+\smallskip
+We decided that the best way to implement RED in \lj\ is as
+a \emph{PacketTransformer}. There was one complication--
+\emph{PacketTransformer}s work with single packets (they take a single packet
+as input and produce a single packet as output), while a RED packet may contain
+multiple "virtual" RTP packets which would need to be output.
+
+We modified \lj, so that all \emph{PacketTransformer}s work with multiple
+packets at a time-- they take an array of packets as input and produce an array
+as output. This change was not easy, because we had to make sure that we didn't
+break existing code, but it proved useful later on when we added support for
+ULPFEC and RTCP compount packets.
+
+We implemented a RED packet transformer following RFC2198 and inserted it in
+the transformer chain, after the SRTP transformer.
+
+
+
+
 \subsection{ULPFEC}
 ULPFEC (stupid idea with re-writing sequence numbers. why adding FEC arbitrary to the stream makes it impossible to decode correctly. what webrtc does. how we handle it by just removing my stupid code). Diagrams
 diagrams
@@ -394,6 +482,7 @@ codec is the one implemented in \emph{webrtc.org} and is therefore the de-facto
 standard at the moment.
 
 
+\subsection{RTCP compunt packets}
 \subsection{Retransmissions}
 
 \section{Recording video}
@@ -437,6 +526,7 @@ provides a high-level overview of the use of VP8 with RTP.
 \begin{figure}[h]
     \includegraphics[width=0.9\textwidth]{./pics/vp8.eps}
     \label{vp8-scheme}
+    \caption{Using VP8 over RTP}
 \end{figure}
 
 \lj\ already has a VP8 implementation, which is used in the \j client and
@@ -464,7 +554,7 @@ We implemented the algorithm suggested in the specification: we buffer RTP
 packets locally, until we receive a packet from a new frame. At this point, we
 check whether the buffer contains a full VP8 frame, and if it does we output
 it. Otherwise, we drop the buffer and start to collect packets for the next
-frame.
+frame. In \lj, the depacketizer is part of the codec chain (see fig. \ref{lj-scheme}).
 
 In order to decide whether a received packet is from a new frame or not, the
 RTP timestamp and the \emph{PictureID} fields are used (if either don't match,
@@ -480,7 +570,7 @@ of a frame}; \emph{(ii) we have the end of a frame (a packet with the M-bit
 set)}; and \emph{(iii) we have
 all RTP sequence numbers inbetween}.
 
-The following pseudo-code illustrates the procedure.
+The following pseudo-code outlines the procedure.
 
 \begin{lstlisting}[frame=single]  % Start your code-block
 hack
@@ -515,7 +605,6 @@ haveFullFrame(){
 \end{lstlisting}
 
 
-\paragraph*{Jitter buffer?}
 \paragraph*{Container format}
 After depacketization, we are left with a stream of VP8 Compressed Frames. We needed to decide how to store them on disk. We considered three options:
 \begin{itemize}
@@ -549,7 +638,7 @@ in browsers. It allows for much more flexibility than \emph{ivf}. The main advan
 is that it can be played by many players.
 
 \smallskip
-After some research, we found a library that would allow us to write \emph{webm} files
+We found a library with a simple API that would allow us to write \emph{webm} files
 very easily, so we decided to ignore \emph{ivf}, postpone the potential
 definition of a new format, and use \emph{webm}. 
 
@@ -564,8 +653,11 @@ decoded frames. Therefore a VP8 decoder needs a keyframe before it can decode
 frames. For this reason we want to always start the recorded files with a
 keyframe.
 
+We 
 
-XXX Note: no decoding/encoding.
+\paragraph*{Jitter buffer?}
+
+Note: no decoding/encoding.
 
 
 
@@ -573,6 +665,11 @@ XXX Note: no decoding/encoding.
 
 \section{Recording audio}
 \label{recording-audio}
+Contrary to our initial expectations, recording audio turned out to be more
+time-consuming than video, with more problems coming up along the way.
+
+Our first implementation 
+
 We tried mixing streams live -- difficult to sync
 
 Decided to record them separately
@@ -590,14 +687,94 @@ transformers -> jb -> decoder -> silence -> encoder + datasink
 FEC (opus): how it works. when we reencode audio, we take advantage of it automatically (already implemented in the decoder).
 
 diagram: how would it look with ogg/opus
+
+
+
+
 \section{Recording metadata}
 \label{recording-metadata}
-What is the metadata used for. Sample JSON
+In order for the post-processing application to correctly process the recorder
+audio and video files, it needs some additional information-- a list of file
+names, at the very least. In the context of our recording system, we call this information
+metadata.
 
-Important information: filenames and timestamps
+We decided to keep all metadata in a single file, and to use a JSON
+format to store it. This would allow to easily extend it with new fields if
+the need arises.
 
-speaker changed events
+We defined a JSON object, which we call a \emph{RecorderEvent}, and the
+metadata file consist of two arrays of such objects: one array for audio and
+one for video.
 
+All \emph{RecorderEvents}s have two mandatory fields: an event type, and an
+instant. The instant is an integer that represents the time at which the event
+took place, in milliseconds. No specific clock is used: only the relative time between
+the events in a single metadata file is taken into account. There are three types of events:
+
+%\begin{itemize}
+%\item RECORDING\_STARTED
+%\item RECORDING\_ENDED
+%\item SPEAKER\_CHANGED
+%\end{itemize}
+
+
+\smallskip
+RECORDING\_STARTED events signify that a recording began in a specific file
+(given by the "filename" field). They also contain an "ssrc" field, giving the
+SSRC associated with the recording. This field is used by the post-processing
+application to associate different files with a single participant, and is
+necessary in case recording of a stream is split among more than one file.
+These events also contain a "mediaType" field used to distinguish between audio and
+video, and two optional fields for additional information about the
+participant: "participantName" and "participantDescription". This is used in
+post-processing to overlay some text identifying the participant on top of
+their video.
+
+\smallskip
+RECORDING\_ENDED events indicate that a particular recording ends at a specific
+time. These events have "filename", "ssrc" and "mediaType" fields with the same meaning
+as for RECORDING\_STARTED events. The post-processing application uses these
+events to decide when to remove a certain audio or video stream from the final mix, but they
+are optional, because it can determine this from the actual media file.
+
+\smallskip
+SPEAKER\_CHANGED events are used to signal that the dominant speaker in the
+conference has changed (at a specific time). They include an "audioSsrc" field which specifies the
+SSRC of the audio stream of the new dominant speaker, and an "ssrc" field which specifies the SSRC of the
+video stream associated with the new dominant speaker. The post-processing application uses SPEAKER\_CHANGED
+events to change the video shown in full size.
+
+A new examples of \emph{RecorderEvent}s follow, and appendix
+\ref{appendix-metadata} contains the full contents of a metadata file from an
+actual recording of a conference.
+
+\begin{verbatim}
+{
+"instant" : 1395767658389,
+"type" : "RECORDING_STARTED",
+"filename" : "3360910907.webm",
+"ssrc" : 3360910907,
+"mediaType" : "video",
+"aspectRatio" : "16_9",
+"participantName" : "Jane Doe",
+"participantDescription" : "
+}
+
+{
+"instant" : 1395767704521,
+"type" : "RECORDING_ENDED",
+"filename" : "1277672956-2.mp3",
+"ssrc" : 1277672956,
+"mediaType" : "audio"
+}
+
+{
+"instant" : 1395767658527,
+"type" : "SPEAKER_CHANGED",
+"ssrc" : 500778727,
+"audioSsrc" : 1277672956
+}
+\end{verbatim}
 
 \section{Synchronization}
 Purpose: audio and video from a single participant need to be perfectly synchronized. Need to use the timestamps from the source, because of network jitter. 
@@ -605,6 +782,29 @@ Purpose: audio and video from a single participant need to be perfectly synchron
 How it works: RTCP sender reports and the info they contain.
 
 My lovely Synchronizer class. Diagrams (I have some on paper, also sync.pdf somewhere)
+
+XXX cname
+
+
+The mappings that we have saved for each SSRC and each endpoint are illustrated
+on figure \ref{diagram-sync}. Given the previously saved values for $rtp0,
+ntp0, ntp1$ and $local1$, and given the RTP timestamp $rtpX$ for SSRC A, we calculate the local
+time $localX$ which corresponds to $rtpX$:
+$$localX = local1 + (ntpX - ntp1)$$ 
+where $ntpX$ is the source's wallclock time corresponding to $rtpX$, for which we have
+$$ntpX = ntp0 + (rtpX - rtp0)$$
+Simplifying: $$localX = local1 + (ntp0 - ntp1) + (rtpX - rtp0)$$
+Of course we have to take into account the different formats of the timestamps.
+
+\begin{figure}[h]
+    \includegraphics[width=0.9\textwidth]{./pics/diagram-sync.eps}
+    \label{diagram-sync}
+    \caption{The mappings XXX}
+\end{figure}
+
+
+
+
 
 \section{Dominant speaker identification}
 \label{dsd}
@@ -706,40 +906,164 @@ XXX Crap, I almost forgot about this!
 \label{jipopro}
 Jipopro
 
+Plan:
+1. read a metadata file
+\begin{itemize}
+\item Process video
+\item Process audio
+\item merge
+\end{itemize}
+a. and v. processing are independent.
+ffmpeg is heavily used (command line, not API), a fixed frame rate used for output, all webm videos are converted to MJPEG, result is endoded
+    decode all,
+    do sections,
+    concat sections,
+    encode result
+audio:sox
+
+performance
+
+future
+
+
+
+
+\section{A full metadata file}
+\label{appendix-metadata}
+\begin{verbatim}
+{
+  "audio" : [
+    { "ssrc" : 2473760775,
+      "filename" : "2473760775.mp3",
+      "type" : "RECORDING_STARTED",
+      "instant" : 1401807483964,
+      "mediaType" : "audio" },
+    { "ssrc" : 2452647913,
+      "filename" : "2452647913.mp3",
+      "type" : "RECORDING_STARTED",
+      "instant" : 1401807484421,
+      "mediaType" : "audio" },
+    { "ssrc" : 1107392327,
+      "filename" : "1107392327.mp3",
+      "type" : "RECORDING_STARTED",
+      "instant" : 1401807501709,
+      "mediaType" : "audio" },
+    { "ssrc" : 1565260729,
+      "filename" : "1565260729.mp3",
+      "type" : "RECORDING_STARTED",
+      "instant" : 1401807524062,
+      "mediaType" : "audio"},
+    { "ssrc" : 1107392327,
+      "filename" : "1107392327-1.mp3",
+      "type" : "RECORDING_STARTED",
+      "instant" : 1401807527409,
+      "mediaType" : "audio"},
+    { "ssrc" : 2452647913,
+      "filename" : "2452647913-1.mp3",
+      "type" : "RECORDING_STARTED",
+      "instant" : 1401807532821,
+      "mediaType" : "audio"}
+  ],
+
+  "video" : [
+    { "ssrc" : 2612617218,
+      "filename" : "2612617218.webm",
+      "aspectRatio" : "16_9",
+      "type" : "RECORDING_STARTED",
+      "instant" : 1401807484011,
+      "mediaType" : "video"},
+      
+    { "ssrc" : 9413050,
+      "filename" : "9413050.webm",
+      "aspectRatio" : "16_9",
+      "type" : "RECORDING_STARTED",
+      "instant" : 1401807484013,
+      "mediaType" : "video"},
+      
+    { "ssrc" : 2612617218,
+      "audioSsrc" : 2473760775,
+      "type" : "SPEAKER_CHANGED",
+      "instant" : 1401807484078,
+      "mediaType" : "video"},
+      
+    { "ssrc" : 9413050,
+      "audioSsrc" : 2452647913,
+      "type" : "SPEAKER_CHANGED",
+      "instant" : 1401807485275,
+      "mediaType" : "video"},
+      
+    { "ssrc" : 1190123626,
+      "filename" : "1190123626.webm",
+      "aspectRatio" : "16_9",
+      "type" : "RECORDING_STARTED",
+      "instant" : 1401807500796,
+      "mediaType" : "video"},
+      
+    { "ssrc" : 2612617218,
+      "audioSsrc" : 2473760775,
+      "type" : "SPEAKER_CHANGED",
+      "instant" : 1401807503515,
+      "mediaType" : "video"},
+      
+    { "ssrc" : 2612617218,
+      "filename" : "2612617218.webm",
+      "type" : "RECORDING_ENDED",
+      "instant" : 1401807509187,
+      "mediaType" : "video"},
+      
+    { "ssrc" : 9413050,
+      "audioSsrc" : 2452647913,
+      "type" : "SPEAKER_CHANGED",
+      "instant" : 1401807512310,
+      "mediaType" : "video"},
+      
+    { "ssrc" : 3879530045,
+      "filename" : "3879530045.webm",
+      "aspectRatio" : "16_9",
+      "type" : "RECORDING_STARTED",
+      "instant" : 1401807522745,
+      "mediaType" : "video"},
+      
+    { "ssrc" : 3879530045,
+      "audioSsrc" : 1565260729,
+      "type" : "SPEAKER_CHANGED",
+      "instant" : 1401807524818,
+      "mediaType" : "video"},
+      
+    { "ssrc" : 1190123626,
+      "filename" : "1190123626.webm",
+      "type" : "RECORDING_ENDED",
+      "instant" : 1401807534861,
+      "mediaType" : "video"},
+      
+    { "ssrc" : 9413050,
+      "audioSsrc" : 2452647913,
+      "type" : "SPEAKER_CHANGED",
+      "instant" : 1401807536296,
+      "mediaType" : "video"},
+      
+    { "ssrc" : 3879530045,
+      "audioSsrc" : 1565260729,
+      "type" : "SPEAKER_CHANGED",
+      "instant" : 1401807541869,
+      "mediaType" : "video"}
+  ]
+}
+\end{verbatim}
+
+
+
+
+\clearpage
+\bibliographystyle{plain}
+\bibliography{bibliography}
+
+
+
+
 \end{document}
 
 XXX: Relaying audio consumes more bandwidth, but is less computationally intensive for \jvb.
-
-\medskip
-subsection{RED}
-RFC2198\cite{red} defines an RTP payload-type that allows the encapsulation of one or more "virtual" RTP packets in a single RTP packet. It is intended to be used with redundancy data.
-
-In \wrtc, RED is used for video streams. Its use is negotiated as a regular media format and it does not have a static payload-type number, so a dynamic number is assigned during negotiation. In the case of a
-\jm\ conference, it is negotiated between the clients and \jvb\ has no way of
-affecting its use or its payload-type number, because it does not actively participate in the
-offer/answer procedure. This means that in order to record video, \jvb\ must understand RED.
-
-My task was to implement RED in \lj. We decided that the best way to do it is to use
-a PacketTransformer. In \lj, when an RTP packet is received from the network,
-it goes through a chain of elements called PacketTransformers, before being
-passed on to the media stack. Example transformations include decrypting SRTP
-packets, stripping certain RTP header extensions, and re-writing the
-payload-type numbers. See figure \ref{transform}.
-
-PacketTransformers operate on single packets: they take a single packet as
-input and produce one as output. Since RED can contain multiple "virtual"
-packets, I needed to modify the infrastructure, so that PacketTransformers take
-as input a set of packets and output a set of packets.
-
-This part was tricky, because I had to make sure that my changes didn't brake
-existing code. After that, the RED implementation was simple.
-
-\begin{figure}[h]
-   \centering
-        \includegraphics[width=0.9\textwidth]{./pics/transform.eps}
-        \caption{Chain of PacketTransformers in \lj.}
-   \label{transform}
-\end{figure}
 
 %difficulties
 \subsection{Uneven Level Protection Forward Error Correction}
@@ -809,9 +1133,6 @@ and re-write the media packets' sequence numbers accordingly. See Figure \ref{fe
    \label{fec-seqs}
 \end{figure}
 
-\subsection{Recording RTP streams}
-This task is about the actual recording to disk of the received RTP streams.
-
 \paragraph*{Audio streams}
 For audio streams we decided to do the mixing in the application (as opposed to
 saving each stream to a separate file and mixing them later). This is because
@@ -841,56 +1162,6 @@ that have been specifically added via signalling). One possible solution was
 for the recorder to spoof the SSRC of another participant. However we opted for
 a proper solution in which \jvb\ announces an SSRC of its own in COLIBRI, and
 that SSRC is used when sending FIR messages.
-
-\paragraph*{Metadata}
-After the audio and video streams have been recorded as described above, we are left
-with one audio file and a set of video files. In order to combine them together we need
-one important piece of information: timing.
-
-We decided that we are going to create a separate file that contains metadata about the
-recordings and that it will contain a list of "events",
-which signify for the beginning or end of a recording or possibly something
-else. We chose a JSON format, and these are a few examples of such events:
-
-\begin{verbatim}
-{
-"ssrc" : 3360910907,
-"filename" : "3360910907.webm",
-"aspectRatio" : "16_9",
-"type" : "RECORDING_STARTED",
-"instant" : 1395767658389,
-"mediaType" : "video"
-}
-
-{
-"ssrc" : -1,
-"filename" : "audio.mp3",
-"type" : "RECORDING_ENDED",
-"instant" : 1395767704521,
-"mediaType" : "audio"
-}
-
-{
-"ssrc" : 500778727,
-"audioSsrc" : 1277672956,
-"type" : "SPEAKER_CHANGED",
-"instant" : 1395767658527,
-"mediaType" : "video"
-}
-\end{verbatim}
-
-The meaning of the first two should be clear-- they indicate that a certain
-file begins at a certain moment in time. 
-The third one indicates that the dominant speaker (described in more detail in
-the section) has changed. The value for "ssrc" is the SSRC of the video stream
-of the new dominant speaker.
-
-The current implementation uses the system time at the moment of reception of
-the first recorded RTP packet for RECORDING\_STARTED events. This is not reliable
-and sometimes leads to the audio and video not being synchronized in the final recording.
-
-One of my next tasks is to improve this, by using the timing information
-contained in RTCP.
 
 \section{Future work}
 My next task is to improve the timing of the recording events we generate, so
@@ -924,9 +1195,6 @@ audio and video in a \jm\ conference.
 
 During the rest of the internship I hope to improve the existing code and to study in more depth
 the problem of dominant speaker detection.
-\clearpage
-\bibliographystyle{plain}
-\bibliography{rapport-stage}
 
 \end{document}
 
