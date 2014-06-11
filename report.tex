@@ -405,7 +405,7 @@ target.
 After a connection is established using ICE, a DTLS-SRTP session is started.
 This means that the endpoints use Datagram TLS (DTLS\cite{dtls})
 %XXX add dtls to bib
-to exchange key material, which is then used to generate session keys for an
+to exchange key material, which is then used to generate session keys for a
 Secure Real-Time Protocol (SRTP\cite{srtp})
 %XXX add srtp to bib
 session. The procedure is defined in RFC5763\cite{rfc5763}.
@@ -413,19 +413,16 @@ session. The procedure is defined in RFC5763\cite{rfc5763}.
 In a \jm\ conference, each participant's browser setups two SRTP sessions with
 \jvb\ in this way.
 
+\medskip
+SRTP provides an unreliable transport. For this reason \wrtc uses a couple of
+mechanisms on top of SRTP to improve the quality of the media. These mechanisms
+and their implementation in \lj\ are discussed in sections \ref{red} to
+\ref{rtx}. Before that section \ref{lj} gives an overview of the RTP stack used
+in \lj.
 
-XXX This section is about transporting media in webrtc. Uses ICE to establish a
-UDP (or TCP) connection, then makes a DTLS/SRTP (in the case of media) stream.
 
 \subsection{The RTP stack in \lj}
-XXX Describe the libjitsi code structure (PacketTransformers)
-\begin{wrapfigure}{R}{4cm}
-   \centering
-        \includegraphics[width=3cm]{./pics/lj-pt.eps}
-        \caption{The chain of \emph{PacketTransformer}s in \lj. The shaded elements are new additions added while implementing the recording functionality.}
-   \label{colibri-conf}
-\end{wrapfigure}
-
+\label{lj}
 
 \begin{wrapfigure}{R}{10cm}
     \centering
@@ -434,7 +431,54 @@ XXX Describe the libjitsi code structure (PacketTransformers)
     \caption{General scheme of the RTP stack in \lj.}
 \end{wrapfigure}
 
+\lj\ makes heavy use of the Freedom for Media in Java
+(FMJ\footnote{http://sourceforge.net/projects/fmj/}) library. This is an
+open-source implementation of the Java Media Framework (JMF) API, and it is
+used in \lj\ for a variety of tasks: capture and playback of media, conversion
+(transcoding) of media, and for handling of basic RTP streams. FMJ is highly extensible, and
+many components (such as media codecs, capture devices and renderers) are written in \lj.
+
+
+The RTP stack which FMJ uses lacks some features: notably support for SRTP and 
+for asymmetric payload type mappings (i.e. sending and receiving a given format
+with two different RTP payload type numbers). In order for \lj\ to implement these features, it
+intercepts the RTP packets from the actual socket in use, and processes them
+before passing them on to FMJ. Specifically, packets go through a chain of
+\emph{PacketTransformer}s, which perform various tasks. Figure \ref{lj-scheme}
+illustrates this scheme.
+
+\begin{wrapfigure}{R}{4cm}
+   \centering
+        \includegraphics[width=3cm]{./pics/lj-pt.eps}
+        \caption{The chain of \emph{PacketTransformer}s in \lj. The shaded elements are new additions added while implementing the recording functionality.}
+   \label{lj-pt}
+\end{wrapfigure}
+\emph{PacketTransformer}s provide a convenient interface to intercept RTP and
+RTCP packets at different stages of their processing and perform additional
+operations on them. Despite their name, \emph{PacketTransformer}s don't need to change
+the packets in any way. That is, they can be used just for monitoring. 
+
+Figure \ref{lj-pt} lists the currently used \emph{PacketTransformer}s in \lj. A
+packet which arrives from the network goes through the chain downwards (and
+when packets are sent, they go through the same chain but in the other
+direction). The transformer labeled "RFC6464" is a filter, which allows packets
+marked as silence using RFC6464\cite{rfc6464} to be dropped early in the
+process, thus saving processing time (this is an optimization implemented for
+the use case of \jvb). The SRTP transformer decrypts SRTP packets. The
+"Override PT" transformer changes the payload type numbers of packets. It is
+used to implement asymmetric payload type mappings. The statistics transformer
+monitors RTCP packets and extracts statistics from them, making them available
+to other parts of the library.
+
+The rest of the transformers (the ones in grey) were added with the
+implementation of the recording system, and will be discussed in the next
+sections.
+
+
+
+
 \subsection{RED}
+\label{red}
 RFC2198\cite{red} defines an RTP payload-type that allows the encapsulation of
 one or more "virtual" RTP packets in a single RTP packet. It is intended to be
 used with redundancy data. Its use is negotiated as a regular media format and
@@ -466,24 +510,99 @@ the transformer chain, after the SRTP transformer.
 
 
 
-\subsection{ULPFEC}
-ULPFEC (stupid idea with re-writing sequence numbers. why adding FEC arbitrary to the stream makes it impossible to decode correctly. what webrtc does. how we handle it by just removing my stupid code). Diagrams
-diagrams
+\subsection{Uneven Level Protection Forward Error Correction}
+\label{ulpfec}
+XXX stupid idea with re-writing sequence numbers
 
+XXX why adding FEC arbitrary to the stream makes it impossible to decode correctly
+
+XXX what webrtc does and how we handle it by just removing my stupid code
+ 
+XXX diagrams?
 \bigskip
-The peer connections between browsers use the Real-time Transport Protocol (RTP\cite{rtp}), and WebRTC mandates the use of
-Interactive Connectivity Establishment (ICE\cite{ice}) for session establishment.
 
-WebRTC defines two mandatory to implement audio codecs: G.711\cite{g711} and
-Opus\cite{opus, opusrtp}. This guarantees that any two compliant browsers can establish
-an audio session. For video, however, the situation is not so simple, with no
-decision having yet been made on a mandatory to implement codec. Google's VP8\cite{vp8}
-codec is the one implemented in \emph{webrtc.org} and is therefore the de-facto
-standard at the moment.
+In general, Forward Error Correction (FEC) refers to a mechanism which allows
+lost data to be recovered without retransmission. It involves sending redundant
+data, in one way or another.
+
+RFC5109\cite{ulpfec} defines a specific RTP payload-type for
+redundant data called Uneven Level Protection FEC (ULPFEC). It is generic in
+the sense that that it can be used with any media payload-type
+(audio or video, no matter what the codec is). 
+
+In \emph{webrtc.org},
+ULPFEC is used with video\footnote{For audio, Opus' own FEC scheme which works differently than ULPFEC is used (and it is already supported in \lj).},
+and while not strictly mandatory for our video-recording (as opposed to RED), it is important because by decreasing the number of irretrievably lost packets, it will improve the quality of the recordings.
+
+ULPFEC (in the rest of the section we refer to it as simply FEC) is applied to
+an RTP stream (the "media stream", with "media packets")
+and adds additional packets to it ("FEC packets"). The basic idea is simple --
+take a set $S$ of a few media packets and apply a parity operation (XOR) on it,
+resulting in a FEC packet $f$. If any one of the packets in $S$ is lost,
+the receiver can use the rest of the packets in $S$ together with $f$ to reconstruct the
+lost packet\footnote{This is similar to how RAID5 works}. 
+
+Along with the parity data, a FEC packet contains two fields which are used to
+describe the set $S$ from which it was constructed: a "sequence number base"
+field, and a bitmap field that describes the sequence numbers of the packets in
+$S$ using the base. The packet $f$ is said to "protect" the packets in $S$. This scheme 
+allows FEC to work without any additional
+signalling (apart from the payload-type number negotiated during session
+initialization). 
+
+\medskip
+We decided to implement FEC as another \emph{PacketTransformer}. This is how it works:
+
+Two buffers of packets are kept: $bMedia$ and $bFEC$. With every FEC packet $f$
+is associated the number $numMissing(f)$ of media packets protected by $f$
+which have not been received.
+
+On reception of a media packet, the values $numMissing(f)$ are recalculated for
+all $f$ in the $bFEC$ buffer. Then, for all $f$ in $bFEC$: if $(numMissing(f)
+== 0)$, then $f$ is removed from $bFEC$. If $numMissing(f) > 1$, then do
+nothing. If $numMissing(f) == 1$, use $f$ and $bMedia$ to reconstruct a media
+packet and remove $f$ from $bFEC$.
+
+On reception of a FEC packet $f$, $numMissing(f)$ is calculated, and the same
+as above is done according to its value.
+
+$bFEC$ is limited to a small size and if a new FEC packet arrives while it is
+full, the oldest FEC packet is dropped. This prevents "stale" FEC packets (for
+which $numMissing$ will always be $>1$, because more than one of their
+protected packets have been lost) to accumulate and cause needless computation.
+
+FEC packets are never passed on to the rest of the application.
+
+\medskip
+XXX replace
+
+One complication arises because of the way \lj\ is structured. The code which
+calculates packet loss and sends RTCP reports resides in FMJ (that is, later in the chain than the FEC transformer, see Figure \ref{transform}).
+So if we just drop the FEC packets, they will be incorrectly considered lost.
+For this purpose we chose to keep track of the number of FEC packets received,
+and re-write the media packets' sequence numbers accordingly. See Figure \ref{fec-seqs} for an illustration.
+
+\begin{figure}[h]
+   \centering
+        \includegraphics[width=0.9\textwidth]{./pics/fec-seqs.eps}
+        \caption{Re-writing sequence numbers after removal of FEC packets. The marked packets are FEC. The line above shows the sequence numbers before FEC is removed, the line below-- after.}
+   \label{fec-seqs}
+\end{figure}
 
 
-\subsection{RTCP compunt packets}
+
+
 \subsection{Retransmissions}
+\label{rtx}
+About 4588 (?)
+
+triggered by RTCP NACK
+
+chrome just retransmits 
+
+we handle it in the JB for video 
+\subsection{RTCP compound packets}
+not much to say, packets are concattenated, we split them...in a \emph{PacketTransformer}, of course..
 
 \section{Recording video}
 \label{recording-video}
@@ -644,7 +763,7 @@ definition of a new format, and use \emph{webm}.
 
 XXX timestamps
 
-XXX diagraam: transformers -> jitter buffer -> depacketizer -> webmdatasink
+XXX refer to lj diagram, depack lives in the codec chain
 
 \paragraph*{Requesting keyframes}
 VP8 has two types of frames: I-frames (or keyframes) which can be decoded
@@ -657,7 +776,10 @@ We
 
 \paragraph*{Jitter buffer?}
 
-Note: no decoding/encoding.
+
+
+
+XXX add note that no decoding/encoding happens when we record video
 
 
 
@@ -687,6 +809,11 @@ transformers -> jb -> decoder -> silence -> encoder + datasink
 FEC (opus): how it works. when we reencode audio, we take advantage of it automatically (already implemented in the decoder).
 
 diagram: how would it look with ogg/opus
+\begin{figure}[h]
+    \includegraphics[width=15cm]{./pics/audio-rec.eps}
+    \label{diagram-sync}
+    \caption{XXX}
+\end{figure}
 
 
 
@@ -891,39 +1018,70 @@ This allows \jvb\ to do DSI very cheaply, without the need to decode the receive
 
 
 \section{future work}
-RTX, recording in ogg/opus, postprocessing, jitter buffers?
+RTX with 4588
 
+requesting RTX with NACK
 
-XXX TODO: support for RTCPCompoundPackets: does it fitsomewhere above?
+recording in ogg/opus
 
-XXX might scratch "future work" altogether?
+postprocessing
+
+jitter buffers
+
+scratch "future work" altogether?
 
 \section{Conclusion}
-XXX Crap, I almost forgot about this!
+XXX Crap, I almost forgot about this! Crap!
 
 \appendix
-\section{Post-processing}
+\section{Jipopro}
 \label{jipopro}
-Jipopro
+\emph{Jipopro} (short for Jitsi Post-Processing) is an application which was developed
+by Vladimir Marinov specifically for post-processing recordings for \jm. It is tied with the
+media formats and the metadata produced by the recording system discussed in this document.
 
-Plan:
-1. read a metadata file
-\begin{itemize}
-\item Process video
-\item Process audio
-\item merge
-\end{itemize}
-a. and v. processing are independent.
-ffmpeg is heavily used (command line, not API), a fixed frame rate used for output, all webm videos are converted to MJPEG, result is endoded
-    decode all,
-    do sections,
-    concat sections,
-    encode result
+On a very high level, \emph{jipopro} does four things:
+\begin{enumerate}
+\item Reads a metadata file
+\item Process video producing a single file
+\item Process audio producing a single file
+\item Merges the audio and video files together
+\end{enumerate}
+
+The audio and video processing are independent (and could be done in parallel).
+
+\paragraph*{Video}
+ffmpeg (command line, not API),
+a fixed frame rate used for output
+
+decode (transcode to MJPEG)
+
+do magic with sections
+
+concat sections
+
+encode
+
+\paragraph*{Audio}
+decode, mix, encode
 audio:sox
+\begin{figure}[h]
+    \includegraphics[width=10cm]{./pics/audio-popro.eps}
+    \label{diagram-sync}
+    \caption{XXX}
+\end{figure}
 
+
+\paragraph*{Merging}
+ffmpeg
+configurable (mp4, webm)
+
+\paragraph*{Performance}
 performance
 
+
 future
+
 
 
 
@@ -1066,73 +1224,6 @@ future
 XXX: Relaying audio consumes more bandwidth, but is less computationally intensive for \jvb.
 
 %difficulties
-\subsection{Uneven Level Protection Forward Error Correction}
-In general, Forward Error Correction (FEC) refers to a mechanism which allows
-lost data to be recovered without retransmission. It involves sending redundant
-data, in one way or another.
-
-RFC5109\cite{ulpfec} defines a specific RTP payload-type for
-redundant data called Uneven Level Protection FEC (ULPFEC). It is generic, meaning that it can be used with any media payload-type
-(audio or video, no matter what the codec is). 
-
-In \emph{webrtc.org},
-ULPFEC is used with video\footnote{For audio, Opus' own FEC scheme which works differently than ULPFEC is used (and it is already supported in \lj).},
-and while not strictly mandatory for our video-recording (as opposed to RED), it is important because by decreasing the number of irretrievably lost packets, it will improve the quality of the recordings.
-My task was to implement support for ULPFEC in \lj.
-
-ULPFEC (in the rest of the section I will refer to it as simply FEC) is applied to
-an RTP stream (the "media stream", with "media packets")
-and adds additional packets to it ("FEC packets"). The basic idea is simple --
-take a set $S$ of a few media packets and apply a parity operation (XOR) on it,
-resulting in a FEC packet $f$. If any one of the packets in $S$ is lost,
-the receiver can use the rest of the packets in $S$ together with $f$ to reconstruct the
-lost packet\footnote{This is similar to how RAID5 works}. 
-
-Along with the parity data, a FEC packet contains two fields which are used to
-describe the set $S$ from which it was constructed: a "sequence number base"
-field, and a bitmap field that describes the sequence numbers of the packets in
-$S$ using the base. The packet $f$ is said to "protect" the packets in $S$. This scheme 
-allows FEC to work without any additional
-signalling (apart from the payload-type number negotiated during session
-initialization). 
-
-\medskip
-We decided to implement FEC as another PacketTransformer. This is how it works:
-
-Two buffers of packets are kept: $bMedia$ and $bFEC$. With every FEC packet $f$
-is associated the number $numMissing(f)$ of media packets protected by $f$
-which have not been received.
-
-On reception of a media packet, the values $numMissing(f)$ are recalculated for
-all $f$ in the $bFEC$ buffer. Then, for all $f$ in $bFEC$: if $(numMissing(f)
-== 0)$, then $f$ is removed from $bFEC$. If $numMissing(f) > 1$, then do
-nothing. If $numMissing(f) == 1$, use $f$ and $bMedia$ to reconstruct a media
-packet and remove $f$ from $bFEC$.
-
-On reception of a FEC packet $f$, $numMissing(f)$ is calculated, and the same
-as above is done according to its value.
-
-$bFEC$ is limited to a small size and if a new FEC packet arrives while it is
-full, the oldest FEC packet is dropped. This prevents "stale" FEC packets (for
-which $numMissing$ will always be $>1$, because more than one of their
-protected packets have been lost) to accumulate and cause needless computation.
-
-FEC packets are never passed on to the rest of the application.
-
-\medskip
-One complication arises because of the way \lj\ is structured. The code which
-calculates packet loss and sends RTCP reports resides in FMJ (that is, later in the chain than the FEC transformer, see Figure \ref{transform}).
-So if we just drop the FEC packets, they will be incorrectly considered lost.
-For this purpose we chose to keep track of the number of FEC packets received,
-and re-write the media packets' sequence numbers accordingly. See Figure \ref{fec-seqs} for an illustration.
-
-\begin{figure}[h]
-   \centering
-        \includegraphics[width=0.9\textwidth]{./pics/fec-seqs.eps}
-        \caption{Re-writing sequence numbers after removal of FEC packets. The marked packets are FEC. The line above shows the sequence numbers before FEC is removed, the line below-- after.}
-   \label{fec-seqs}
-\end{figure}
-
 \paragraph*{Audio streams}
 For audio streams we decided to do the mixing in the application (as opposed to
 saving each stream to a separate file and mixing them later). This is because
