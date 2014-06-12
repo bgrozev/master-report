@@ -1,5 +1,5 @@
-%\documentclass[twoside,openright,a4paper,11pt,english,draft]{article}
-\documentclass[twoside,openright,a4paper,11pt,english]{article}
+%\documentclass[twoside,openright,a4paper,12pt,english,draft]{article}
+\documentclass[twoside,openright,a4paper,12pt,english]{article}
 
 %\documentclass[twoside,openright,a4paper,11pt,french]{article}
 %\documentclass[twoside,openright,a4paper,11pt,french]{book}
@@ -25,11 +25,11 @@
 % Définition des marges
 \usepackage{geometry}
 \geometry{%
-  left=22mm,%
-  right=22mm,%
-  top=15mm,%
-  bottom=15mm,%
-  foot=10mm% 
+  left=30mm,%
+  right=30mm,%
+  top=35mm,%
+  bottom=45mm,%
+  foot=15mm% 
 }
 
 \begin{document}
@@ -969,6 +969,10 @@ actual recording of a conference.
 \end{verbatim}
 
 \section{Synchronization}
+--how is audio synchronized
+--how is video synchronize
+
+--how to time them...
 Purpose: audio and video from a single participant need to be perfectly synchronized. Need to use the timestamps from the source, because of network jitter. 
 
 How it works: RTCP sender reports and the info they contain.
