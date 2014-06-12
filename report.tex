@@ -556,7 +556,7 @@ and adds additional packets to it ("FEC packets"). The basic idea is simple --
 take a set $S$ of a few media packets and apply a parity operation (XOR) on it,
 resulting in a FEC packet $f$. If any one of the packets in $S$ is lost,
 the receiver can use the rest of the packets in $S$ together with $f$ to reconstruct the
-lost packet\footnote{This is similar to how RAID5 works}. 
+lost packet\footnote{This is similar to how RAID5 works.}. 
 
 Along with the parity data, a FEC packet contains two fields which are used to
 describe the set $S$ from which it was constructed: a "sequence number base"
@@ -690,7 +690,7 @@ use of any of their patents used in
 
 
 Both VP8 in general and \emph{libvpx} work exclusively with the I420 raw
-(uncompressed) image format\footnote{http://www.fourcc.org/yuv.php\#IYUV}.
+(uncompressed) image format\cite{i420}.
 There is an encoder, which takes as input an I420 image and produces a "VP8
 Compressed Frame". Similarly, a decoder reads VP8 compressed frames and
 produces I420 images.
@@ -812,8 +812,8 @@ disadvantages of this approach are the complexity that it brings, and the
 inflexibility with regards to the players -- we'd need to implement our own
 decoder (probably to be used in post-processing).
 
-The \emph{webm}\footnote{http://www.webmproject.org/about/} format is a subset of
-\emph{matroska}\footnote{http://www.matroska.org/}. It has been designed
+The \emph{webm}\cite{webm} format is a subset of
+\emph{matroska}\cite{matroska}. It has been designed
 specifically to contain VP8 (possibly interleaved with audio) and to be played
 in browsers. It allows for much more flexibility than \emph{ivf}. The main advantage
 is that it can be played by many players.
