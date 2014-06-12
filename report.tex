@@ -33,11 +33,10 @@
 }
 
 \begin{document}
-%XXX add date to title
 
 %%% IRBABOON
 \def\j{\emph{Jitsi}}
-\def\jvb{\emph{Jitsi-Videobridge}}
+\def\jvb{\emph{Jitsi Videobridge}}
 \def\bj{\emph{BlueJimp}}
 \def\lj{\emph{libjitsi}}
 \def\wrtc{\emph{webrtc.org}}
@@ -70,14 +69,25 @@
 
 
 \begin{abstract}
-This document is submitted as part of the requirements for obtaining a masters
-degree in informatics at the University of Strasbourg. It describes work done
-during a 6-months long internship. A modern video
-conferencing application based on WebRTC (\jm) is discussed, and a system for
-media recording, which I helped to design and implement, is examined in detail.
-The first section serves as an introduction to the work environment for the
-internship and the most important relevant standards and technologies. The rest 
-of the sections examine specific parts of the media recording system.
+This document describes the implementation of various media recording-related
+features in a modern video conferencing application based on WebRTC. We start
+by introducing the work environment and the various technological components
+involved in the project. We then proceed with a detailed description of the
+different stages of the project including the way audio and video data is
+transported over the network, the way it is persistently stored, synchronized,
+and the way multiple audio and video files are organized and combined in a
+single flat audio/video file. The work on the project is still actively
+pursued and we therefore also present a number of planned future steps and
+improvements that will likely be implemented in the near
+future.
+
+%This document describes work done
+%during a 6-months long internship. It describes a modern video
+%conferencing application based on WebRTC (\jm) discussed, and a system for
+%media recording, which I helped to design and implement, is examined in detail.
+%The first section introduces the work environment for the
+%internship and the most important relevant standards and technologies. The rest 
+%of the sections examine specific parts of the media recording system.
 \end{abstract}
 
 
@@ -85,22 +95,35 @@ of the sections examine specific parts of the media recording system.
 
 \section{Introduction}
 \label{chap:intro}
-The first part of this section is about \bj, the company which hosts my internship.
-Sections \ref{intro-jitsi} to \ref{intro-jm} are an overview of the
-important standards and software products involved in a \jm\ conference.
-Finally, section \ref{intro-recording}
-defines what we mean by "media recording" and gives a general overview of the
-process.
+The ever decreasing cost of bandwidth and processing resources have in the recent years
+made multi-party video conferencing over the internet viable for personal use. The advent of the WebRTC
+technology that adds audio/video communication capabilities to web browsers,
+has made the development of conferencing application (or the addition of
+conferencing features to existing applications) simpler than ever before.
+
+The work described in this document is about the development of video recording features
+within \jm: an existing WebRTC video conferencing application. Through
+the rest of this section we introduce the working environment, the most
+important standards and software products used in \jm, and we discuss the
+general concept of recording a conference. In sections \ref{recording-video} through \ref{dsd} we examine specific
+parts of the recording process in detail. In section \ref{future-work} we
+discuss new features and optimizations to existing features which we plan to
+develop in the near future. In section \ref{conclusion} we review accomplished work.
 
 
+XXX Problematique, objectifs
 
+XXX mise en relation des besoins de l’entreprise et des objectifs des missions mise en perspective de ces missions : en quoi cela apporte qq chose cahier des charges
 
+XXX mode de travail (avec qui ? qui fait quoi ?)
+
+XXX planning
 \subsection{\bj}
-XXX expand \bj\ section
+XXX expand?
 
-XXX add dates?
+XXX footnotes -> bib
 
-
+XXX bib autheors
 
 \bj\footnote{\url{https://bluejimp.com}} is a small company which
 offers support and development services mainly focused around the
@@ -211,10 +234,10 @@ group chats, user avatars, file transfers, account registration, transporting
 XMPP over HTTP, discovery of node capabilities, management of  wireless sensors (provisioning, control, data collection),
 and, most relevant here, internet telephony.
 
-\emph{Jingle} (define in XEP-0166\cite{jingle166} and XEP-0167\cite{jingle167})
+\emph{Jingle} (defined in XEP-0166\cite{jingle166} and XEP-0167\cite{jingle167})
 is a signalling protocol, serving a purpose similar to that of SIP: it uses an
 offer-answer model to setup an RTP session. Many of the
-protocols often used with SIP, such as ICE\cite{ice}, ZRTP\cite{zrtp}, DTLS-SRTP\cite{dtls-srtp}, and
+protocols often used with SIP, such as ICE\cite{ice}, ZRTP\cite{zrtp}, DTLS-SRTP\cite{rfc5763}, and
 RFC4575\cite{rfc4575} can also be used with \emph{Jingle}. Mappings
 have been defined between the two\cite{stoxmedia}, which allow gateways or rich
 clients to organize cross-protocol calls.
@@ -266,7 +289,6 @@ The resulting connections for signalling and media are depicted in Figures
 \ref{jitmeet-sig} and \ref{jitmeet-med} respectively.
 
 
-XXX update pictures
 \begin{figure}[h]
    \centering
         \begin{subfigure}[t]{0.4\textwidth}
@@ -369,6 +391,7 @@ perform recording.
    \label{jitmeet-rec}
 \end{wrapfigure}
 
+XXX
 Since the participating clients are running an application within their
 browser, if we want one of them to do recording, we would need modifications to
 the browsers which is undesirable. To avoid this, a "fake" participant can
@@ -382,15 +405,14 @@ Recording directly on \jvb\ is more straightforward, so our initial
 implementation was focused on that. However, most of the code resides in \lj, allowing
 it to be easily reused.
 
-Li Shunyang, a student from Peking University, is currently working, under the
-Google Summer of Code program, on
-a recording
-application which uses the fake participant approach--
- \emph{Jirecon}\footnote{https://github.com/jitsi/jirecon}.
+Li Shun Yang, a student from Peking University, is currently working, under my guidance and within context of the
+Google Summer of Code program, on the implementation of a standalone XMPP
+container for the recording application described here
+\emph{Jirecon}\footnote{https://github.com/jitsi/jirecon}.
 
 
 
-\section{The WebRTC transport layer XXX rename (s/WebRTC//?)}
+\section{Implementing support for the WebRTC transport layer}
 The documents from the RTCWEB working group at the IETF specify how multimedia
 is to be transported between WebRTC endpoints. In the most part existing
 standards are reused.
@@ -450,7 +472,7 @@ illustrates this scheme.
 \begin{wrapfigure}{R}{4cm}
    \centering
         \includegraphics[width=3cm]{./pics/lj-pt.eps}
-        \caption{The chain of \emph{PacketTransformer}s in \lj. The shaded elements are new additions added while implementing the recording functionality.}
+        \caption{The chain of \emph{PacketTransformer}s in \lj. The shaded elements are the new additions.}
    \label{lj-pt}
 \end{wrapfigure}
 \emph{PacketTransformer}s provide a convenient interface to intercept RTP and
@@ -603,21 +625,21 @@ of the media packets unnecessary.
 
 \subsection{Retransmissions}
 \label{rtx}
-RFC4585\cite{rfc4585} defines a RTCP Feedback message type called NACK, with
+RFC4585\cite{rfc4585} defines a type of RTCP Feedback Message (called NACK), with
 which a received can indicate to a sender that a specific RTP packet (or a set
-of packets) has not been received. Upon receipt of a NACK a sender might attempt to
+of packets) has not been received. Upon receipt of a NACK, a sender might attempt to
 retransmit the lost packets. 
 
-In \wrtc\ NACKs and retransmissions are used for
-the video streams. Current versions do retransmission by send the exact same
+In \wrtc\ NACKs and retransmissions are used with
+the video streams. Current versions do retransmission by sending the exact same
 RTP packets (without even re-encrypting, which causes some SRTP implementations
 to falsely detect a replay attack), but there's planned switch to using the
 payload format defined in RFC4588\cite{rfc4588} to encapsulate retransmitted packets.
 
 Currently \lj\ does not support RFC4588, but we plan to implement it (as
 another \emph{PacketTransformer}). Retransmitted packets are not handled in a
-special way-- we just ensure, for the purposes of recording, that we have
-buffers of sufficient size (see section \ref{video-jb}).
+special way-- we just ensure that we have
+buffers of sufficient size so that retransmitted packets are not dropped as arriving too late (see section \ref{video-jb}).
 
 \medskip
 When the recording application runs on the \jvb, requesting retransmissions with NACKs is not
@@ -639,10 +661,12 @@ together and the length fields in their headers allow their later
 reconstruction.
 
 Because of the lack of support for such packets in FMJ (and because \wrtc\
-makes use of them), we implemented it in \lj\ as a \emph{PacketTransformer}.
+makes use of them), we implemented it in \lj\ (as a \emph{PacketTransformer}).
 
+XXX what we did!
 \section{Recording video}
 \label{recording-video}
+\subsection{The VP8 codec}
 The WebRTC standards do not define a video codec which has to be supported by all clients. There
 has been a very long discussion at the IETF
 (XXX add link?)
@@ -691,7 +715,7 @@ a packetizer and a depacketizer. For the purposes of recording, we need
 only a depacketizer. We found that the existing depacketizer is not compliant with
 the specification, and also not compatible with \wrtc. We decided to re-write it from scratch.
 
-\paragraph*{The depacketizer}
+\subsection{Depacketization}
 \label{depacketizer}
 The VP8 Payload Descriptor contains, among others, the following fields.
 \begin{itemize}
@@ -762,7 +786,7 @@ haveFullFrame(){
 \end{lstlisting}
 
 
-\paragraph*{Container format}
+\subsection{Container format}
 After depacketization, we are left with a stream of VP8 Compressed Frames. We needed to decide how to store them on disk. We considered three options:
 \begin{itemize}
 \item Use the \emph{ivf} container format
@@ -795,15 +819,17 @@ in browsers. It allows for much more flexibility than \emph{ivf}. The main advan
 is that it can be played by many players.
 
 \smallskip
-We found a library with a simple API that would allow us to write \emph{webm} files
-very easily, so we decided to ignore \emph{ivf}, postpone the potential
+We found a small library with a simple API that would allow us to write \emph{webm} files
+easily, so we decided to ignore \emph{ivf}, postpone the potential
 definition of a new format, and use \emph{webm}. 
+
+We adapted the library to our needs, 
 
 XXX timestamps
 
 XXX refer to lj diagram, depack lives in the codec chain
 
-\paragraph*{Requesting keyframes}
+\subsection{Requesting keyframes}
 VP8 has two types of frames: I-frames (or keyframes) which can be decoded
 without any other context, and P-frames, whose decoding depends on previously
 decoded frames. Therefore a VP8 decoder needs a keyframe before it can decode
@@ -812,7 +838,7 @@ keyframe.
 
 We 
 
-\paragraph*{Jitter buffer?}
+\subsection{Jitter buffer?}
 \label{video-jb}
 
 
@@ -1055,8 +1081,19 @@ This allows \jvb\ to do DSI very cheaply, without the need to decode the receive
 
 
 
+\section{Conclusion}
+\label{conclusion}
+XXX Crap, I almost forgot about this! Crap!
+
+During the last 6 m we have succ managed to impl a viable recording solution optimal quality and scalability characteristichs. We have also learned the shortcoming of some of our initial ideas, such as live audio mixing and post-processing.
+
+Gathered valuale experience
+
+- de ce que ca a apporte a l’entreprise (realisation)
+- de ce que ca vous a apporte (acquisition de competences)
 
 \section{future work}
+\label{future-work}
 RTX with 4588
 
 requesting RTX with NACK
@@ -1069,8 +1106,6 @@ jitter buffers
 
 scratch "future work" altogether?
 
-\section{Conclusion}
-XXX Crap, I almost forgot about this! Crap!
 
 \appendix
 \section{Jipopro}
@@ -1089,6 +1124,8 @@ On a very high level, \emph{jipopro} does four things:
 
 The audio and video processing are independent (and could be done in parallel).
 
+
+XXX margins and font size
 \paragraph*{Video}
 ffmpeg (command line, not API),
 a fixed frame rate used for output
