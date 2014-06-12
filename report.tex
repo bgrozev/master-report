@@ -414,7 +414,7 @@ In a \jm\ conference, each participant's browser setups two SRTP sessions with
 \jvb\ in this way.
 
 \medskip
-SRTP provides an unreliable transport. For this reason \wrtc uses a couple of
+SRTP provides an unreliable transport. For this reason \wrtc\ uses a couple of
 mechanisms on top of SRTP to improve the quality of the media. These mechanisms
 and their implementation in \lj\ are discussed in sections \ref{red} to
 \ref{rtx}. Before that section \ref{lj} gives an overview of the RTP stack used
@@ -512,15 +512,6 @@ the transformer chain, after the SRTP transformer.
 
 \subsection{Uneven Level Protection Forward Error Correction}
 \label{ulpfec}
-XXX stupid idea with re-writing sequence numbers
-
-XXX why adding FEC arbitrary to the stream makes it impossible to decode correctly
-
-XXX what webrtc does and how we handle it by just removing my stupid code
- 
-XXX diagrams?
-\bigskip
-
 In general, Forward Error Correction (FEC) refers to a mechanism which allows
 lost data to be recovered without retransmission. It involves sending redundant
 data, in one way or another.
@@ -531,8 +522,11 @@ the sense that that it can be used with any media payload-type
 (audio or video, no matter what the codec is). 
 
 In \emph{webrtc.org},
-ULPFEC is used with video\footnote{For audio, Opus' own FEC scheme which works differently than ULPFEC is used (and it is already supported in \lj).},
-and while not strictly mandatory for our video-recording (as opposed to RED), it is important because by decreasing the number of irretrievably lost packets, it will improve the quality of the recordings.
+ULPFEC is used with video\footnote{For audio, Opus' own FEC scheme which works
+differently than ULPFEC is used (and it is already supported in \lj).},
+and while not strictly mandatory for our video-recording (as opposed to RED),
+it is important because by decreasing the number of irretrievably lost packets,
+it will improve the quality of the recordings.
 
 ULPFEC (in the rest of the section we refer to it as simply FEC) is applied to
 an RTP stream (the "media stream", with "media packets")
@@ -571,38 +565,81 @@ full, the oldest FEC packet is dropped. This prevents "stale" FEC packets (for
 which $numMissing$ will always be $>1$, because more than one of their
 protected packets have been lost) to accumulate and cause needless computation.
 
-FEC packets are never passed on to the rest of the application.
 
-\medskip
-XXX replace
+\bigskip
+RFC5109 does not place any restrictions on the placement of FEC packets within
+a stream, and in our architecture FEC packets are handled entirely in the FEC
+\emph{PacketTransformer} and not passed on to the rest of the application. This
+presents a potential problem for the depacketizer (see section
+\ref{depacketizer}), because it cannot differentiate
+between a sequence number missing because a packet was lost and a sequence number missing
+because it was used by a FEC packet.
 
-One complication arises because of the way \lj\ is structured. The code which
-calculates packet loss and sends RTCP reports resides in FMJ (that is, later in the chain than the FEC transformer, see Figure \ref{transform}).
-So if we just drop the FEC packets, they will be incorrectly considered lost.
-For this purpose we chose to keep track of the number of FEC packets received,
-and re-write the media packets' sequence numbers accordingly. See Figure \ref{fec-seqs} for an illustration.
+For this reason we initially implemented re-writing of the RTP sequence numbers of
+the media packets after they pass the \emph{PacketTransformer}-- we decreased their
+number by the number of FEC packets already received (see figure \ref{fec-seqs} for an
+illustration). This still leaves some problems, because a lost FEC packet might be
+incorrectly interpreted as a missing media packet, and because packets might be
+incorrectly re-numbered when a packet has arrived out of order.
 
 \begin{figure}[h]
    \centering
         \includegraphics[width=0.9\textwidth]{./pics/fec-seqs.eps}
-        \caption{Re-writing sequence numbers after removal of FEC packets. The marked packets are FEC. The line above shows the sequence numbers before FEC is removed, the line below-- after.}
+        \caption{Re-writing sequence numbers after removal of FEC packets. The
+        marked packets are FEC. The line above shows the sequence numbers
+        before FEC is removed, the line below-- after.}
    \label{fec-seqs}
 \end{figure}
+
+Upon further research we found that \wrtc\ restricts the placement of FEC
+packets in the stream by only adding them at the end of a VP8 frame, after the
+RTP packet with the \emph{M}-bit set (see section \ref{recording-video}). This
+restriction allows the depacketizer to distinguish between the case of a lost
+part of a frame and a sequence number being used for FEC, and makes re-numbering
+of the media packets unnecessary.
 
 
 
 
 \subsection{Retransmissions}
 \label{rtx}
-About 4588 (?)
+RFC4585\cite{rfc4585} defines a RTCP Feedback message type called NACK, with
+which a received can indicate to a sender that a specific RTP packet (or a set
+of packets) has not been received. Upon receipt of a NACK a sender might attempt to
+retransmit the lost packets. 
 
-triggered by RTCP NACK
+In \wrtc\ NACKs and retransmissions are used for
+the video streams. Current versions do retransmission by send the exact same
+RTP packets (without even re-encrypting, which causes some SRTP implementations
+to falsely detect a replay attack), but there's planned switch to using the
+payload format defined in RFC4588\cite{rfc4588} to encapsulate retransmitted packets.
 
-chrome just retransmits 
+Currently \lj\ does not support RFC4588, but we plan to implement it (as
+another \emph{PacketTransformer}). Retransmitted packets are not handled in a
+special way-- we just ensure, for the purposes of recording, that we have
+buffers of sufficient size (see section \ref{video-jb}).
 
-we handle it in the JB for video 
+\medskip
+When the recording application runs on the \jvb, requesting retransmissions with NACKs is not
+very important, because all RTP packets go through the bridge, and if the
+bridge is missing a packet, then so are the rest of the participants. The recorder can
+rely on the participants for sending NACKs, and just make use of the retransmissions themselves.  
+However, when the recorder runs in a separate application (as a "fake"
+participant), this approach doesn't work, because packets might be lost between
+the bridge and the recorder. Our implementation does not yet support sending NACKs, but we plan
+to introduce it.
+
+
+
+
 \subsection{RTCP compound packets}
-not much to say, packets are concattenated, we split them...in a \emph{PacketTransformer}, of course..
+RFC3550 specifies that two or more RTCP packets can be combined into a compoint
+RTCP packet. The format is very simple -- the packets are just concatenated
+together and the length fields in their headers allow their later
+reconstruction.
+
+Because of the lack of support for such packets in FMJ (and because \wrtc\
+makes use of them), we implemented it in \lj\ as a \emph{PacketTransformer}.
 
 \section{Recording video}
 \label{recording-video}
@@ -655,6 +692,7 @@ only a depacketizer. We found that the existing depacketizer is not compliant wi
 the specification, and also not compatible with \wrtc. We decided to re-write it from scratch.
 
 \paragraph*{The depacketizer}
+\label{depacketizer}
 The VP8 Payload Descriptor contains, among others, the following fields.
 \begin{itemize}
 \item \emph{S}-bit: start of VP8 partition, set only if the first byte of the payload of the packet is the first byte of a VP8 partition.
@@ -775,6 +813,7 @@ keyframe.
 We 
 
 \paragraph*{Jitter buffer?}
+\label{video-jb}
 
 
 
