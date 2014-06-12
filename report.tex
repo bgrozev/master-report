@@ -852,28 +852,29 @@ XXX add note that no decoding/encoding happens when we record video
 
 \section{Recording audio}
 \label{recording-audio}
-Contrary to our initial expectations, recording audio turned out to be more
-time-consuming than video, with more problems coming up along the way.
+Codecs in WebRTC
 
-Our first implementation 
+\subsection{Opus}
+A few words about the Opus and how its FEC work
 
-We tried mixing streams live -- difficult to sync
+\subsection{Recording a mix directly ("live" mixing)}
+We tried mixing streams live -- difficult to sync, expensive. How it it implemented with \lj
 
-Decided to record them separately
+\subsection{Recording streams separately}
+Why, how (how do we use \lj and FMJ). Allows for sync (we know the RTP TS of the first recorder sample!)
 
-Still problems with sync: lost packets cause "holes" and in a long recording video starts to progressively lag more and more.
-Needed to add silence: allows for perfect sync (up to a sample)
+\subsection{Repairing gaps}
+Inserting silence. Restarting (don't want to add too much silence, because it needs to be encoded and thats expecsive).
 
-Problem with too much silence (e.g when someone unmutes). Restarting streams when too much silence detected
-
-We reencode to mp3 (because we have mp3 support ready). We want to do ogg/opus, and avoid decoding and encoding altogether. Problem: FEC
-
+\subsection{Current situation}
+Reencode to mp3 (because we have mp3 support ready). We want to do ogg/opus, and avoid decoding and encoding altogether. Problem: FEC
 diagram:
 transformers -> jb -> decoder -> silence -> encoder + datasink
 
-FEC (opus): how it works. when we reencode audio, we take advantage of it automatically (already implemented in the decoder).
-
+\subsection{The ogga\\opus idea}
+Dreams
 diagram: how would it look with ogg/opus
+
 \begin{figure}[h]
     \includegraphics[width=15cm]{./pics/audio-rec.eps}
     \label{diagram-sync}
@@ -977,11 +978,10 @@ Purpose: audio and video from a single participant need to be perfectly synchron
 
 How it works: RTCP sender reports and the info they contain.
 
-My lovely Synchronizer class. Diagrams (I have some on paper, also sync.pdf somewhere)
-
-XXX cname
+Can use CNAME, but chrome has a bug (link). We use "endpoint" identifiers obtained from signalling instead.
 
 
+\subsection{Implementation}
 The mappings that we have saved for each SSRC and each endpoint are illustrated
 on figure \ref{diagram-sync}. Given the previously saved values for $rtp0,
 ntp0, ntp1$ and $local1$, and given the RTP timestamp $rtpX$ for SSRC A, we calculate the local
