@@ -121,10 +121,6 @@ XXX planning
 \subsection{\bj}
 XXX expand?
 
-XXX footnotes -> bib
-
-XXX bib autheors
-
 \bj\footnote{\url{https://bluejimp.com}} is a small company which
 offers support and development services mainly focused around the
 \j\footnote{\url{https://jitsi.org}}
@@ -210,8 +206,10 @@ and the on-the-wire protocols, being defined within
 the \emph{RTCWEB} working group\cite{rtcweb-wg} at the IETF.
 
 These standards provide web developers with a very powerful tool, which
-can be used to easily create rich real-time multimedia applications. They
-also allow for some very interesting and more complicated use-cases.
+can be used to easily create rich real-time multimedia applications.
+There is also the possibility to pass arbitrary data in an 
+application-defined format. These allow for some very interesting and more
+complicated use-cases. 
 
 The specifications are still being developed, but are already at an advanced stage. There is
 an open-source implementation of the network protocols, provided by Google with
@@ -405,7 +403,7 @@ Recording directly on \jvb\ is more straightforward, so our initial
 implementation was focused on that. However, most of the code resides in \lj, allowing
 it to be easily reused.
 
-Li Shun Yang, a student from Peking University, is currently working, under my guidance and within context of the
+Shunyang Li, a student from Peking University, is currently working, under my guidance and within context of the
 Google Summer of Code program, on the implementation of a standalone XMPP
 container for the recording application described here
 \emph{Jirecon}\footnote{https://github.com/jitsi/jirecon}.
@@ -566,7 +564,28 @@ allows FEC to work without any additional
 signalling (apart from the payload-type number negotiated during session
 initialization). 
 
-\medskip
+The amount of FEC packets added to a stream can be controlled by changing the
+number of protected packets, and this can be done dynamically by the sender, to
+adapt to network conditions. This is the most common way to use FEC, and the
+one currently employed by \wrtc: a given fraction of the configured bandwidth
+is allocated for FEC, and it is changed depending on the packet loss
+statistics received with RTCP. The aim is to mitigate the effects of packet
+loss without retransmissions. 
+
+Another way to use FEC is for probing the available bandwidth. When the sender
+detects stable network conditions, it wants to increase its sending bitrate, in
+order to improve quality. However, this risks causing a congestion, and therefore
+packet loss. The sender initially increases its sending rate by significantly
+increasing the amount of FEC. In this case, even if a congestion occurs, the receiver
+is more likely to be able to reconstruct the media packets (without the need for
+retransmissions). The sender then monitors the following RTCP reports. If they
+indicate a high percentage of packet loss, the sender goes back to the
+previous, lower rate. Otherwise, the sender can keep the total bitrate, but decrease
+the rate of FEC, using the available bitrate for the encoder instead, thus improving
+the video quality. This scheme is examined in \cite{NagyS2013}.
+
+
+\paragraph*{Implementation}
 We decided to implement FEC as another \emph{PacketTransformer}. This is how it works:
 
 Two buffers of packets are kept: $bMedia$ and $bFEC$. With every FEC packet $f$
@@ -588,7 +607,7 @@ which $numMissing$ will always be $>1$, because more than one of their
 protected packets have been lost) to accumulate and cause needless computation.
 
 
-\bigskip
+\medskip
 RFC5109 does not place any restrictions on the placement of FEC packets within
 a stream, and in our architecture FEC packets are handled entirely in the FEC
 \emph{PacketTransformer} and not passed on to the rest of the application. This
@@ -663,7 +682,9 @@ reconstruction.
 Because of the lack of support for such packets in FMJ (and because \wrtc\
 makes use of them), we implemented it in \lj\ (as a \emph{PacketTransformer}).
 
-XXX what we did!
+
+
+
 \section{Recording video}
 \label{recording-video}
 \subsection{The VP8 codec}
@@ -832,26 +853,79 @@ XXX refer to lj diagram, depack lives in the codec chain
 \subsection{Requesting keyframes}
 VP8 has two types of frames: I-frames (or keyframes) which can be decoded
 without any other context, and P-frames, whose decoding depends on previously
-decoded frames. Therefore a VP8 decoder needs a keyframe before it can decode
-frames. For this reason we want to always start the recorded files with a
-keyframe.
+decoded frames. In order to start working, a VP8 decoder needs to first decode a keyframe.
+Therefore, we want the recorded webm files to start with a keyframe.
 
-We 
+Because keyframes are rarely sent, and because we want to be able to start
+recording a conference at any time, we needed a way to trigger the generation of a
+keyframe. One way to do this, which is supported by \wrtc, is by the use of
+RTCP Full-Intra Request (FIR) feedback messages (defined in
+RFC5104\cite{rfc5104}, section 3.5.1).
+
+We added support for FIR messages in \lj\ and made use of them to request
+keyframes in the beginning of a recording. We faced a difficulty because FIR
+messages contain an "SSRC of packer sender" field, and \wrtc\ clients only
+accept messages from SSRCs that they know about (that is, that have been
+specifically added via signalling). We had to make \jvb\ generate and use it's
+own SSRC, which it also announces to the focus via COLIBRI.
 
 \subsection{Jitter buffer?}
 \label{video-jb}
+A jitter buffer is normally used in a real-time multimedia application to
+introduce a certain amount of delay in the playback of media,
+mitigating the effects of the varying delay of different packets on the network
+(the jitter). A buffer which is too small gets emptied quickly and playback has
+to be paused. A buffer which is too big adds unnecessary delay to the playback.
+For this reason complex adaptive jitter buffers are used, which change their
+size according to network conditions.
 
+In the case of video with WebRTC, apart from just jitter on the network, there
+might be packet retransmissions triggered by the receiver (which necessarily
+arrive at least one RTT later than the original), and it is beneficial if the
+buffer is large enough to accept them (as opposed to dropping them because they
+have arrived too late).
 
+For the purposes of recording, a relatively long delay on the order of a few
+seconds is acceptable, provided that the buffer can be emptied at the end of the recording,
+without packets being is discarded. For this reason we decided to use a fixed-size
+jitter buffer.
 
+FMJ already includes a jitter buffer in it's chain (see \ref{lj-scheme}), but
+for technical reasons it was hard to implement a way to empty it without
+discarding its contents. We decided to implement our own buffer, in the form of
+a \emph{PacketTransformer}. For simplicity, we limited its size to a given
+number of packets, and not to a given length of time. We used a default size
+of 300 packets, since we observed that this usually corresponds to between 3
+and 10 seconds.
 
-XXX add note that no decoding/encoding happens when we record video
+\subsection{An overview of the whole process}
+The components discussed above are put together in a \lj\ component,
+which we implemented specifically for recording video\footnote{Although we
+later adapted it to record audio as well.}. Its input is in the form of RTP
+packets. It first demultiplexes the packets by their SSRC, and puts them in a jitter
+buffer (which is placed as the last element of the \emph{PacketTransformer} chain in figure \ref{lj-scheme}).
+When a new VP8 stream is detected (a stream with a new SSRC), an RTCP FIR message is sent, in
+order to trigger the generation of a keyframe. After they exit the jitter buffer, all packets
+are passed to an instance of FMJ which is configured to transcode from the
+"VP8/RTP" format, to the "VP8" (i.e. to do depacketization). FMJ does it's own
+demultiplexing and creates a VP8 depacketizer for each stream. The depacktizer
+is part of the FMJ codec chain (again, see figure \ref{lj-scheme}), and the
+internal FMJ jitter buffer is practically not used. The output of FMJ is in the
+form of a stream of VP8 compressed frames, which is passed to a
+\emph{WebmDataSink} instance, which produces the final \emph{webm} file.
 
+When the recording is stopped for a stream (either because of a user request
+via the API, or because of an RTCP BYE message is receive, or because of a
+timeout), the jitter buffer for the specific SSRC is emptied.
+
+Using this process, each SSRC stream (with the VP8 format) is saved in a separate \emph{webm} file.
 
 
 
 
 \section{Recording audio}
 \label{recording-audio}
+The WebRTC standards define two mandatory to implement audio codecs: \emph{G711}\cite{g711} and \emph{Opus}\cite{opus}. All WebRTC endpoints are required to implement them. \emph{G711} is a
 Codecs in WebRTC
 
 \subsection{Opus}
@@ -1015,20 +1089,26 @@ In a \jm\ conference there are two use-cases for DSI: for use "live" in a
 conference and for recording. 
 For "live" use, the purpose is to have the client interface change during a
 conference, according to who is the dominant speaker (i.e. the video shown in
-full changes when the dominant speaker changes). In this case DSI is performed
-on \jvb, which uses WebRTC data channels to notify the clients of the change.
+full changes, following the dominant speaker). In this case DSI is performed
+on \jvb, which uses WebRTC data channels\footnote{These are channels which
+carry application data (and not audio or video), but are negotiated and
+established in the same way as the media channels.}
+to notify the clients of the change.
 
 For use in recording, the purpose is for the post-processing application to
 take into account the dominant speaker when combining the videos (in general,
 it follows the \jm\ interface and renders the dominant speaker in full size).
-In this case, DSI is performed on the recording application, and changes of
+In this case, DSI is performed on the recording application\footnote{Although,
+if the recording application is running as a participant, it can potentially
+also open a WebRTC data channel to the \jvb\ and use the events received there,
+instead of doing DSI itself.}, and changes of
 the dominant speaker are saved as metadata.
 
 \paragraph*{Implementation}
-My task was to design and implement an API and a simple, non-optimized
-algorithm , which we could later improve upon. 
+Our first task was to design and implement an API and a simple, non-optimized
+algorithm, which we could later improve upon. 
 
-I came up with a very simplified scheme, implemented it and tweaked its parameters until it seemed to
+We came up with a very simplified scheme, implemented it and tweaked its parameters until it seemed to
 work well in a conversation with two people. It only takes into account the
 audio levels (that is, the loudness of the sound) of the different streams. It
 works like this:
@@ -1054,7 +1134,7 @@ third is to make sure that when participants leave a conference, they aren't
 mistakenly chosen as active (this is due to implementation details)
 
 The values for the parameters are very dependent on the exact rules for scoring.
-I chose the values based on a few uncontrolled experiments we performed. I used
+We chose the values based on a few uncontrolled experiments we performed. We used
 MIN\_ACTIVE $= 1000$ and $C = 1.15$ (MIN\_SCORE is too arbitrary to deserve mention).
 
 Scores are computed as follows: $C_{recent} * avg(0, N_1) + C_{older} * avg(N_1, N_2)$
@@ -1308,54 +1388,6 @@ XXX: Relaying audio consumes more bandwidth, but is less computationally intensi
 For audio streams we decided to do the mixing in the application (as opposed to
 saving each stream to a separate file and mixing them later). This is because
 \lj\ already has all the necessary components. 
-
-\paragraph*{Video streams}
-We decided to handle video streams one-by-one. For the moment we support only
-VP8, and for that reason we decided to use the \emph{webm} container format. Also, this well-known format allows us
-to later use other already available tools, such as \emph{ffmpeg}, for post-processing.
-
-We found an existing library which can write files in \emph{webm} format and I adapted it
-to our needs.
-
-\paragraph*{Requesting keyframes}
-VP8 has two types of frames: I-frames (keyframes) and P-frames. In order to start working, a decoder
-needs to be initialized with a keyframe. Therefore, we want the recorded webm files to start with a keyframe.
-
-Because keyframes are rarely sent, and because we want to be able to start
-recording a conference at any time, we need a way to trigger the generation of a
-keyframe. One way to do this, which is supported by \wrtc, is by the use of
-RTCP Full-Intra Request (FIR) feedback messages (defined in
-RFC5104\cite{rfc5104}, section 3.5.1).
-
-The difficulty we faced is that FIR messages contain an "SSRC of packer sender" field, and
-\wrtc\ clients only accept messages from SSRCs that they know about (that is,
-that have been specifically added via signalling). One possible solution was
-for the recorder to spoof the SSRC of another participant. However we opted for
-a proper solution in which \jvb\ announces an SSRC of its own in COLIBRI, and
-that SSRC is used when sending FIR messages.
-
-\section{Future work}
-My next task is to improve the timing of the recording events we generate, so
-that audio and video would be synchronised. The most accurate way of achieving
-this would be to rely on timing information from RTCP messages and the RTP
-timestamps.
-
-Next I will focus on adding support for VP8 PLC (Packet Loss Concealment) to be used with
-recording. PLC is a \emph{libvpx} feature which allows the decoder to decode
-frames, even when parts of them are missing. Since while recording we do not
-have a live decoder (and adding one would be undesirable, because it would make
-the process very CPU-intensive), we will need to save files in a
-format which supports additional information about frames, which we can later
-use in an external application in order to decode partial frames. 
-
-I will also be implementing more advanced reliability mechanisms such as RTP 
-retransmissions (RTX)\cite{rfc4588}.
- 
-Then, once recording quality is satisfactory I will proceed with an improved
-scheme for dominant speaker detection. 
-  
-I will also be attempting to turn the video recorder into a standalone
-application in order to improve the scalability of the entire solution.
 
 
 \section{Conclusion}
