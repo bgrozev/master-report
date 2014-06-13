@@ -975,7 +975,7 @@ browsers, \emph{Opus} is always the codec being used.
 
 \emph{Opus} has a build-in FEC mechanism which works differently than the
 RFC5109 mechanism discussed in section \ref{ulpfec}. If enabled for a packet,
-it encodes the packet at a lower quality (and lower bitrate), and attaches this
+it encodes the packet at a lower quality, and attaches this
 version to the subsequent packet. This allows a single lost packet to be
 recovered (in lower quality), but if two consecutive packets are missing, only
 one can be recovered. It also has a Packet Loss Concealment (PLC) function, which
@@ -992,11 +992,18 @@ application) and record a single file. This was because \lj\ has an advanced
 audio mixer component, which is used in the \j\ client and \jvb\  (if it is so
 configured) to mix the audio for a conference. The API allows the addition of a
 basic RTP stream, and handles all the processing (decoding, resampling, if
-needed) automatically. Also, the audio mixer serves as a capture device, and
+needed) automatically (see figure \ref{audio-mixer}). Also, the audio mixer
+serves as a capture device, and
 can thus be recorded with the existing \lj\ recorder.
 
+\begin{figure}[h]
+    \includegraphics[width=10cm]{./pics/audio-mixer.eps}
+    \caption{The API of the \lj\ audio mixer}
+    \label{audio-mixer}
+\end{figure}
+
 Indeed, the implementation proved easy to do, but we faced a problem when we
-started to think about synchronizing the recorder audio and video. In order to
+started to think about synchronizing the recorded audio and video. In order to
 do this, we would at the very least need to know the exact moment where a
 stream has been added to the mix. This was very hard to do with the audio mixer
 API.
@@ -1005,10 +1012,9 @@ We would also need a way to guarantee that the spacing between two audio
 packets in the mix exactly matches the spacing between the packets at the
 source. We had no way of doing this with the mixer.
 
-We decided that we needed to give up the idea of using the \lj\ audio mixer and
+We decided that we needed to give up using the \lj\ audio mixer and
 implement code which would allow us finer control over the whole process.
 
-XXX diagram mixer
 
 \subsection{Recording streams separately}
 Since we were going to implement the code to handle the decoding and recording
@@ -1019,22 +1025,23 @@ decided to record streams individually.
 
 We already had a \emph{RecorderRtpImpl} (see section
 \ref{recording-video-overview}) which we used for video, and which performed
-many of the tasks which we require.
+many of the things needed for audio as well. We adapted \emph{RecorderRtpImpl}
+so that it could handle streams with different formats, including audio
+formats.
 
-We adapted \emph{RecorderRtpImpl} so that it could handle streams with
-different formats. The existing code in \lj\ supports recording only in
+The existing code in \lj\ supports recording only in
 \emph{mp3} format. We decided to use this, for the time being, because it is
-relatively easy to later transcode it to whatever format is needed.
+relatively easy to transcode it to whatever format is needed in post-processing.
 
 For an audio stream, we use FMJ to decode (to a PCM format), and
-then encode it to \emph{mp3} and save it in an \emph{mp3} format.
+then encode it and save it in \emph{mp3} format.
 
 
 
 \subsection{Repairing gaps}
 In contrast to video in a \emph{webm} file, in which frames have their
 individual presentation timestamps, an audio stream consists of just sound
-samples played one after the other. This means that if some samples are missing
+samples to be played one after the other. This means that if some samples are missing
 for some reason (e.g. because of a packet lost in the network), the resulting
 stream will be shorter than the original. 
 
@@ -1054,9 +1061,10 @@ audio packets. However, these packets are specifically marked as containing sile
 RFC6464, and \jvb\ drops them. When a participant unmutes, this results in a
 gap, which is possibly many minutes long.
 
-Repairing such a gap of, for example, 10 minutes would require a relatively
-large amount of computation. In such cases it would be better to re-start the
-recording for the stream in a new file, giving it it's own timestamp in the
+Repairing such a gap by adding silence samples would require non-negligible amount
+of computation, because all these samples will then need to be encoded. In such cases
+it would be better to re-start the
+recording for the stream in a new file, giving it its own timestamp in the
 metadata, so that it can be properly mixed in post-processing.
 
 To solve this problem, we decided to introduce an element in the FMJ codec chain, which
@@ -1072,29 +1080,32 @@ up to a single sample). For gaps longer than this, it signals to the
 This scheme allows us to know, for each recorded audio file, the RTP timestamp
 of the first RTP packet, the audio from which is contained in the file. This piece of
 information allows us to ensure the synchronization of the resulting audio and video files (see
-section \label{synchronization} for the details)
+section \ref{synchronization}).
 
 
 \subsection{Overview}
 Initially we started with recording a mix of all audio streams, because that
-was the easiest solution. We later change to recording streams individually.
+was the easiest solution. We later changed to recording streams individually.
 Each incoming audio stream (which is usually \emph{Opus}, but any of the codecs
 supported in \lj\ can be used as well), is first decoded (and re-sampled to
 48000Hz, if necessary), then gaps are repaired by inserting silence. Then the
 stream is encoded and saved in an \emph{mp3} file. See figure \ref{audio-rec}
-for an illustration.
+for an illustration. If a gaps of more than 3 seconds is detected, we start
+recording in a new file.
 
 \begin{figure}[h]
     \includegraphics[width=10cm]{./pics/audio-rec.eps}
-    \caption{The chain used to reencode audio for the purposes of recording.}
+    \caption{The chain used to transencode audio for the purposes of recording.}
     \label{audio-rec}
 \end{figure}
 
-This solution involves re-encoding and that makes it suboptimal -- it is both
+This solution involves re-encoding and that makes it suboptimal -- it is 
 more computationally expensive than necessary and reduces the sound quality of the recording.
-A better solution would be, whenever possible, to record in a contained format
-that does not require encoding (as we do for video). For \emph{Opus}, a viable solution would be
-to use the ogg/opus format and we plan to implement, see section \ref{ogg-opus}.
+A better solution would be, whenever possible, to record in a container format
+that does can accommodate the original format, and thus does not require
+transcoding or even decoding (as we do for video). For \emph{Opus}, a viable
+solution would be to use the ogg/opus format and we plan to implement it , see
+section \ref{ogg-opus}.
 
 
 
