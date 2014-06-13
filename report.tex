@@ -309,7 +309,7 @@ The resulting connections for signalling and media are depicted in Figures
 
 The \jvb\ instance runs as a relay (as opposed to a mixer) for both video and
 audio (meaning that it only passes RTP packets between the participants,
-without needing to decode their payload).
+without considering their payload).
 
 \smallskip
 On the user-interface end, \jm\ aims to make it as easy as possible for a
@@ -330,8 +330,8 @@ shown in full size to the person currently speaking.
 
 \begin{figure}[h]
     \includegraphics[width=1\textwidth]{./pics/jm-ss.eps}
-    \label{jm-ss}
     \caption{A screen capture from a \jm\ conference.}
+    \label{jm-ss}
 \end{figure}
 
 \medskip
@@ -448,9 +448,9 @@ in \lj.
 
 \begin{wrapfigure}{R}{10cm}
     \centering
-    \includegraphics[width=10cm]{./pics/lj.eps}
-    \label{lj-scheme}
+    \includegraphics[width=9cm]{./pics/lj.eps}
     \caption{General scheme of the RTP stack in \lj.}
+    \label{lj-scheme}
 \end{wrapfigure}
 
 \lj\ makes heavy use of the Freedom for Media in Java
@@ -461,7 +461,7 @@ used in \lj\ for a variety of tasks: capture and playback of media, conversion
 many components (such as media codecs, capture devices and renderers) are written in \lj.
 
 
-The RTP stack which FMJ uses lacks some features: notably support for SRTP and 
+The RTP stack used by FMJ lacks some features: notably support for SRTP and 
 for asymmetric payload type mappings (i.e. sending and receiving a given format
 with two different RTP payload type numbers). In order for \lj\ to implement these features, it
 intercepts the RTP packets from the actual socket in use, and processes them
@@ -584,7 +584,7 @@ retransmissions). The sender then monitors the following RTCP reports. If they
 indicate a high percentage of packet loss, the sender goes back to the
 previous, lower rate. Otherwise, the sender can keep the total bitrate, but decrease
 the rate of FEC, using the available bitrate for the encoder instead, thus improving
-the video quality. This scheme is examined in \cite{NagyS2013}.
+the video quality. This scheme is examined in \cite{NagySOE13}.
 
 
 \paragraph*{Implementation}
@@ -727,8 +727,8 @@ provides a high-level overview of the use of VP8 with RTP.
 
 \begin{figure}[h]
     \includegraphics[width=0.9\textwidth]{./pics/vp8.eps}
-    \label{vp8-scheme}
     \caption{Using VP8 over RTP (c.f. stands for "compressed frame")}
+    \label{vp8-scheme}
 \end{figure}
 
 \lj\ already has a VP8 implementation, which is used in the \j client and
@@ -961,7 +961,6 @@ diagram: how would it look with ogg/opus
 
 \begin{figure}[h]
     \includegraphics[width=15cm]{./pics/audio-rec.eps}
-    \label{diagram-sync}
     \caption{XXX}
 \end{figure}
 
@@ -1078,8 +1077,8 @@ Of course we have to take into account the different formats of the timestamps.
 
 \begin{figure}[h]
     \includegraphics[width=0.9\textwidth]{./pics/diagram-sync.eps}
-    \label{diagram-sync}
     \caption{The mappings XXX}
+    \label{diagram-sync}
 \end{figure}
 
 
@@ -1236,7 +1235,6 @@ decode, mix, encode
 audio:sox
 \begin{figure}[h]
     \includegraphics[width=10cm]{./pics/audio-popro.eps}
-    \label{diagram-sync}
     \caption{XXX}
 \end{figure}
 
