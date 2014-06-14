@@ -25,9 +25,9 @@
 % Définition des marges
 \usepackage{geometry}
 \geometry{%
-  left=30mm,%
-  right=30mm,%
-  top=35mm,%
+  left=26mm,%
+  right=27mm,%
+  top=32mm,%
   bottom=45mm,%
   foot=15mm% 
 }
@@ -41,6 +41,8 @@
 \def\lj{\emph{libjitsi}}
 \def\wrtc{\emph{webrtc.org}}
 \def\jm{\emph{Jitsi Meet}}
+\hyphenation{WebRTC}
+\hyphenation{transport}
 
 
 %%% NOOBABRI
@@ -53,7 +55,8 @@
 \pagestyle{empty}
 \newpage
 
-%\cleardoublepage
+\cleardoublepage
+\include{ack}
 
 % La table des matières
 \parskip=0pt
@@ -105,20 +108,21 @@ conferencing features to existing applications) simpler than ever before.
 
 The work described in this document is about the development of video recording features
 within \jm: an existing WebRTC video conferencing application. Throughout
-the rest of this section we introduce the working environment, the most
-important standards and software products used in \jm, and we discuss the
-general concept of recording a conference. In sections \ref{recording-video} through \ref{dsd} we examine specific
+the rest of this section we introduce the working environment and the most
+important standards and software products used in \jm. In section
+\ref{intro-recording} we define 
+what we mean by recording a conference and introduce the possible general
+approaches to the problem.
+In sections \ref{recording-video} through \ref{dsd} we examine specific
 parts of the recording process in detail. 
 In section \ref{conclusion} we review accomplished work, and 
 in section \ref{future-work} we
-discuss new features and optimizations to existing features which we plan to
+review new features and optimizations to existing features which we plan to
 develop in the near future. 
 
 
 
 \subsection{\bj}
-XXX expand?
-
 \bj\footnote{\url{https://bluejimp.com}} is a small company which
 offers support and development services mainly focused around the
 \j\footnote{\url{https://jitsi.org}}
@@ -182,7 +186,7 @@ participating clients need not be aware that \jvb\ is in use (for example they
 can be simple SIP clients). Since the end of 2013 \jvb\ supports ICE and is WebRTC-compatible.
 
 One of the latest additions to the \j\ family is
-\jm\footnote{\url{https://jitsi.org/Projects/JitsiMeet}}. This is a WebRTC
+\jm\cite{jitsi-meet}. This is a WebRTC
 application, which runs completely within a browser and creates a video
 conference using a \jvb\ instance to relay the media. \jm\ is discussed in more detail in \ref{intro-jm}.
 
@@ -238,27 +242,38 @@ RFC4575\cite{rfc4575} can also be used with \emph{Jingle}. Mappings
 have been defined between the two\cite{stoxmedia}, which allow gateways or rich
 clients to organize cross-protocol calls.
 
-\begin{wrapfigure}{r}{0.4\textwidth}
+\subsection{COLIBRI}
+\begin{figure}[h]
    \centering
-        \includegraphics[width=0.35\textwidth]{./pics/colibri-conf.eps}
+        \includegraphics[width=0.45\textwidth]{./pics/colibri-conf.eps}
+
         \caption{A COLIBRI conference.}
    \label{colibri-conf}
-\end{wrapfigure}
+\end{figure}
 
-COnferencing with LIghtweight BRIdging (COLIBRI\cite{colibri}) is an extension
+
+COnferencing with LIghtweight BRIdging (COLIBRI, defined in XEP-0340\cite{colibri}) is an XMPP extension
 developed mostly in \bj\ for use with \jvb. It provides a way for a client to control a multimedia
-relay or mixer, such as \jvb. It works with the concept of a \emph{conference}, which contains
-\emph{channels}, separated in different \emph{contents} (see fig.\ref{colibri-conf}).
-In the most common use case a client requests the creation of a \emph{conference} with a specified number of
-channels. The mixer allocates local sockets for each \emph{channel} and
+relay or mixer, such as \jvb. It works with the concept of a \emph{Conference}, which contains
+\emph{Channel}s, separated in different \emph{Content}s (see fig.\ref{colibri-conf}).
+
+In the most common use case a client requests the creation of a \emph{Conference} with a specified number of
+\emph{Channel}s. The mixer allocates local sockets for each \emph{Channel} and
 provides their addresses to the client. The client then uses these transport
-addresses as its own to establish, for example, a \emph{Jingle} call. 
+addresses as its own to establish, for example, a \emph{Jingle} call with another participant. 
 Instead of just allocating local sockets, the ICE protocol can be used, in
-which case the mixer provides a list of ICE candidates for each \emph{channel}.
-The protocol works with a natural XML representation of a \emph{conference}.
-After the \emph{conference} is established, the client can add or remove channels
+which case the mixer provides a list of ICE candidates for each \emph{Channel}.
+
+The protocol works with a natural XML representation of a \emph{Conference}.
+After a \emph{Conference} has been established, the client can add or remove channels
 from it, or change the parameters (such as the direction in which
-media is allowed to flow) of an existing \emph{channel}.
+media is allowed to flow) of an existing \emph{Channel}.
+
+The protocol is being extended for the purposes of \jm\ (see the next section), and
+now also has support for establishing \emph{Channel}s which use DTLS\cite{dtls}, and
+establishing special \emph{Channel}s for use with WebRTC data channels. It also supports the
+starting and stopping of the recording for a specific \emph{Conference} (which was a
+small extension implemented as part of the recording effort described in this document). 
 
 
 
@@ -327,7 +342,7 @@ use dominant speaker identification (see section \ref{dsd}) to change the video
 shown in full size to the person currently speaking.
 
 \begin{figure}[h]
-    \includegraphics[width=1\textwidth]{./pics/jm-ss.eps}
+    \includegraphics[width=1\textwidth]{./pics/jm-ss2.eps}
     \caption{A screen capture from a \jm\ conference.}
     \label{jm-ss}
 \end{figure}
@@ -342,20 +357,22 @@ control over their conferencing solution.
 
 
 
-\subsection{Recording}
+\section{Recording a \jm\ conference}
 \label{intro-recording}
-By recording a multimedia conference in general we mean the following: all the
-audio and video from the conference
-is saved to disk in some format, in a way which allows the whole conference to
+
+\subsection{What we mean by recording}
+By recording a multimedia conference in general we mean the following: 
+all audio and video flows exchanged during a conference are saved
+to disk in some format, in a way which allows the whole conference to
 be played back later on.
 
 \medskip
 In our specific case, the recording of a conference has four main parts:
 \begin{itemize}
-\item{Recording video}
-\item{Recording audio}
-\item{Recording metadata}
-\item{Post-processing}
+\item{\textbf{Recording video}: storing all video flows (0, 1 or more per participant) in separate, single track files.}
+\item{\textbf{Recording audio}: storing all conference audio flows (usually 1 or more per participant) in either a single mix or separate single track files.}
+\item{\textbf{Recording metadata}: persisting all non-media information that is important for the reconstitution of a conference.}
+\item{\textbf{Post-processing}: combining all recorded audio, video and metadata in a single audio/video file.}
 \end{itemize}
 
 Recording of the media is the process in which the audio and video RTP streams
@@ -364,21 +381,23 @@ are many different ways in which this can be done. Our final solution (and some
 of the ideas that didn't work) are discussed in detail in
 sections \ref{recording-video} and \ref{recording-audio}.
 
-Recording of metadata means saving additional information (apart from the media
-itself) which is necessary to play back the conference later. This includes filenames,
-timing information, participant names and changes of the active speaker. There
-is a detailed discussion of the
-metadata that we use in section \ref{recording-metadata}.
+By metadata we mean all additional information (apart from the media
+itself) which is necessary to play back the conference later. This includes participant names,
+filenames, synchronization source (SSRC) identifiers, flow start and end times, etc.
+A detailed discussion of the
+metadata that we use is provided in section \ref{recording-metadata}.
 
 Post-processing in our case means taking all the recorded data and producing a
-single file with one audio track and one video track. The specifics depend on
-configuration, but
+single file with one audio track and one video track, which can be easily
+viewed, manipulated and uploaded and viewed at popular video streaming
+platforms\footnote{Such as YouTube and Daily Motion}.
+The details can vary, but 
 generally all audio is mixed together, and the videos are combined in a way to
 resemble the \jm\ interface. Appendix \ref{jipopro} discusses the
 post-processing application.
 
 
-\paragraph*{Where does recording happen?}
+\subsection{Which entity performs recording}
 As can be seen in figure \ref{jitmeet-med}, in a \jm\ conference both \jvb\ and
 all the participants have access to the RTP streams, and so could potentially
 perform recording.
@@ -408,7 +427,7 @@ it to be easily reused.
 
 Shunyang Li, a student from Peking University, is currently working, under my
 guidance and within context of the Google Summer of Code program, on
-\emph{Jirecon}\footnote{https://github.com/jitsi/jirecon}-- a standalone XMPP
+\emph{Jirecon}\cite{jirecon}-- a standalone XMPP
 container for the recording application described here.
 
 
@@ -416,7 +435,8 @@ container for the recording application described here.
 \section{Implementing support for the WebRTC transport layer}
 The documents from the RTCWEB working group at the IETF specify how multimedia
 is to be transported between WebRTC endpoints. In the most part existing
-standards are reused.
+standards are reused, which made our task of implementing support for the
+WebRTC transport significantly more manageable.
 
 It is mandatory to use the Interactive Connectivity Establishment (ICE\cite{ice}) protocol to
 establish a session. This assures that an endpoint will not send any media
@@ -430,42 +450,37 @@ This means that the endpoints use Datagram TLS (DTLS\cite{dtls})
 to exchange key material, which is then used to generate session keys for a
 Secure Real-Time Protocol (SRTP\cite{srtp})
 session. The procedure is defined in RFC5763\cite{rfc5763}.
-In a \jm\ conference, each participant's browser setups two SRTP sessions with
+In a \jm\ conference, each participant's browser sets up two secure RTP sessions with
 \jvb\ in this way.
 
 \medskip
-SRTP provides an unreliable transport. For this reason \wrtc\ uses a couple of
-mechanisms on top of SRTP to improve the quality of the media. These mechanisms
-and their implementation in \lj\ are discussed in sections \ref{red} to
-\ref{rtx}. Before that section \ref{lj} gives an overview of the RTP stack used
+RTP provides an unreliable transport. For this reason \wrtc\ uses a couple of
+mechanisms on top of RTP to improve the quality of the media.
+Implementing support for these mechanisms in \lj\ was one of the most
+significant efforts during our recording project. These efforts are
+discussed in detail in sections \ref{red} to \ref{rtx}.
+Before that, however, section \ref{lj} gives an overview of the existing RTP stack
 in \lj.
 
 
 \subsection{The RTP stack in \lj}
 \label{lj}
 
-\begin{wrapfigure}{R}{10cm}
-    \centering
-    \includegraphics[width=9cm]{./pics/lj.eps}
-    \caption{General scheme of the RTP stack in \lj.}
-    \label{lj-scheme}
-\end{wrapfigure}
-
 \lj\ makes heavy use of the Freedom for Media in Java
-(FMJ\footnote{http://sourceforge.net/projects/fmj/}) library. This is an
+(FMJ\cite{fmj}) library. This is an
 open-source implementation of the Java Media Framework (JMF) API, and it is
 used in \lj\ for a variety of tasks: capture and playback of media, conversion
 (transcoding) of media, and for handling of basic RTP streams. FMJ is highly extensible, and
 many components (such as media codecs, capture devices and renderers) are written in \lj.
 
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=9cm]{./pics/lj.eps}
+    \caption{General scheme of the RTP stack in \lj.}
+    \label{lj-scheme}
+\end{figure}
 
-The RTP stack used by FMJ lacks some features: notably support for SRTP and 
-for asymmetric payload type mappings (i.e. sending and receiving a given format
-with two different RTP payload type numbers). In order for \lj\ to implement these features, it
-intercepts the RTP packets from the actual socket in use, and processes them
-before passing them on to FMJ. Specifically, packets go through a chain of
-\emph{PacketTransformer}s, which perform various tasks. Figure \ref{lj-scheme}
-illustrates this scheme.
+
 
 \begin{wrapfigure}{R}{4cm}
    \centering
@@ -473,6 +488,13 @@ illustrates this scheme.
         \caption{The chain of \emph{PacketTransformer}s in \lj. The shaded elements are new additions.}
    \label{lj-pt}
 \end{wrapfigure}
+The RTP stack used by FMJ lacks some features: notably support for SRTP and 
+for asymmetric payload type mappings (i.e. sending and receiving a given format
+with two different RTP payload type numbers). In order for \lj\ to implement these features, it
+intercepts the RTP packets from the actual socket in use, and processes them
+before passing them on to FMJ. Specifically, packets go through a chain of
+\emph{PacketTransformer}s, which perform various tasks. Figure \ref{lj-scheme}
+illustrates this scheme.
 \emph{PacketTransformer}s provide a convenient interface to intercept RTP and
 RTCP packets at different stages of their processing and perform additional
 operations on them. Despite their name, \emph{PacketTransformer}s don't need to change
@@ -500,10 +522,11 @@ sections.
 
 
 
-
 \subsection{RED}
 \label{red}
-RFC2198\cite{red} defines an RTP payload-type that allows the encapsulation of
+Our first task was to implement support for implement support for the RED 
+payload format for RTP. This format is defined in
+RFC2198\cite{red} and allows the encapsulation of
 one or more "virtual" RTP packets in a single RTP packet. It is intended to be
 used with redundancy data. Its use is negotiated as a regular media format and
 it does not have a static payload-type number, so a dynamic number is assigned
@@ -536,7 +559,9 @@ the transformer chain, after the SRTP transformer.
 
 \subsection{Uneven Level Protection Forward Error Correction}
 \label{ulpfec}
-In general, Forward Error Correction (FEC) refers to a mechanism which allows
+Our next task was to implement support for the Forward Error Correction (FEC)
+format used in \wrtc.
+In general, (FEC) refers to a mechanism which allows
 lost data to be recovered without retransmission. It involves sending redundant
 data, in one way or another.
 
@@ -546,15 +571,15 @@ the sense that that it can be used with any media payload-type
 (audio or video, no matter what the codec is). 
 
 In \emph{webrtc.org},
-ULPFEC is used with video\footnote{For audio, Opus' own FEC scheme which works
+ULPFEC is used for the video streams\footnote{For audio, Opus' own FEC scheme which works
 differently than ULPFEC is used (and it is already supported in \lj).},
 and while not strictly mandatory for our video-recording (as opposed to RED),
 it is important because by decreasing the number of irretrievably lost packets,
 it will improve the quality of the recordings.
 
 ULPFEC (in the rest of the section we refer to it as simply FEC) is applied to
-an RTP stream (the "media stream", with "media packets")
-and adds additional packets to it ("FEC packets"). The basic idea is simple --
+an RTP stream (the "media stream", with "media packets"). When a sender uses FEC
+for a particular stream, it adds additional packets to it ("FEC packets"). The basic idea is simple --
 take a set $S$ of a few media packets and apply a parity operation (XOR) on it,
 resulting in a FEC packet $f$. If any one of the packets in $S$ is lost,
 the receiver can use the rest of the packets in $S$ together with $f$ to reconstruct the
@@ -568,13 +593,13 @@ allows FEC to work without any additional
 signalling (apart from the payload-type number negotiated during session
 initialization). 
 
-The amount of FEC packets added to a stream can be controlled by changing the
-number of protected packets, and this can be done dynamically by the sender, to
-adapt to network conditions. This is the most common way to use FEC, and the
-one currently employed by \wrtc: a given fraction of the configured bandwidth
-is allocated for FEC, and it is changed depending on the packet loss
+The sender can control the amount of FEC packets it adds to a stream by changing the
+number of protected packets, and it can do this dynamically, adapting
+to network conditions. This is the most common usage of FEC, and the
+one currently employed by \wrtc: the sender allocates a given fraction of the configured bandwidth
+to FEC, and this fraction changes depending on the packet loss
 statistics received with RTCP. The aim is to mitigate the effects of packet
-loss without retransmissions. 
+loss without the need for retransmissions. 
 
 Another way to use FEC is for probing the available bandwidth. When the sender
 detects stable network conditions, it wants to increase its sending bitrate, in
@@ -584,34 +609,35 @@ increasing the amount of FEC. In this case, even if a congestion occurs, the rec
 is more likely to be able to reconstruct the media packets (without the need for
 retransmissions). The sender then monitors the following RTCP reports. If they
 indicate a high percentage of packet loss, the sender goes back to the
-previous, lower rate. Otherwise, the sender can keep the total bitrate, but decrease
+previous, lower rate. Otherwise, the sender keeps the total bitrate, but decreases
 the rate of FEC, using the available bitrate for the encoder instead, thus improving
-the video quality. This scheme is examined in \cite{NagySOE13}.
+the video quality. This scheme is examined in \cite{NagySOE13}
+and it may represent a surface for future improvement of the \jvb\ and \jm\ platforms.
 
 
-\paragraph*{Implementation}
+\subsubsection{Implementation of ULPFEC}
 We decided to implement FEC as another \emph{PacketTransformer}. This is how it works:
 
-Two buffers of packets are kept: $bMedia$ and $bFEC$. With every FEC packet $f$
-is associated the number $numMissing(f)$ of media packets protected by $f$
-which have not been received.
+We keep two buffers of packets: $bMedia$ and $bFEC$. With every FEC packet $f$
+we associate the number $numMissing(f)$ of media packets protected by $f$
+which we have not received (but we could receive later on).
 
-On reception of a media packet, the values $numMissing(f)$ are recalculated for
+When we receive a new media packet, we recalculate the values $numMissing(f)$ for
 all $f$ in the $bFEC$ buffer. Then, for all $f$ in $bFEC$: if $(numMissing(f)
-== 0)$, then $f$ is removed from $bFEC$. If $numMissing(f) > 1$, then do
-nothing. If $numMissing(f) == 1$, use $f$ and $bMedia$ to reconstruct a media
-packet and remove $f$ from $bFEC$.
+== 0)$, then we remove $f$ from $bFEC$. If $numMissing(f) > 1$, then we do
+nothing. If $numMissing(f) == 1$, we use $f$ and $bMedia$ to reconstruct a media
+packet and then we remove $f$ from $bFEC$.
 
-On reception of a FEC packet $f$, $numMissing(f)$ is calculated, and the same
-as above is done according to its value.
+When we receive a FEC packet $f$, we calculate $numMissing(f)$, and apply the same procedure
+as above. 
 
-$bFEC$ is limited to a small size and if a new FEC packet arrives while it is
-full, the oldest FEC packet is dropped. This prevents "stale" FEC packets (for
+We have limited $bFEC$ to a small size, and if $bFEC$ is full when we receive a new FEC packet, we drop the oldest packet from it.
+In this way, we prevent "stale" FEC packets (for
 which $numMissing$ will always be $>1$, because more than one of their
 protected packets have been lost) to accumulate and cause needless computation.
 
 
-\medskip
+\subsubsection{Re-writing RTP sequence numbers}
 RFC5109 does not place any restrictions on the placement of FEC packets within
 a stream, and in our architecture FEC packets are handled entirely in the FEC
 \emph{PacketTransformer} and not passed on to the rest of the application. This
@@ -623,9 +649,9 @@ because it was used by a FEC packet.
 For this reason we initially implemented re-writing of the RTP sequence numbers of
 the media packets after they pass the \emph{PacketTransformer}-- we decreased their
 number by the number of FEC packets already received (see figure \ref{fec-seqs} for an
-illustration). This still leaves some problems, because a lost FEC packet might be
-incorrectly interpreted as a missing media packet, and because packets might be
-incorrectly re-numbered when a packet has arrived out of order.
+illustration). This still leaves some problems, because we might incorrectly interpret
+a lost FEC packet as a lost media packet, and because we might incorrectly renumber
+some packets if they arrive out of order.
 
 \begin{figure}[h]
    \centering
@@ -639,30 +665,38 @@ incorrectly re-numbered when a packet has arrived out of order.
 Upon further research we found that \wrtc\ restricts the placement of FEC
 packets in the stream by only adding them at the end of a VP8 frame, after the
 RTP packet with the \emph{M}-bit set (see section \ref{recording-video}). This
-restriction allows the depacketizer to distinguish between the case of a lost
-part of a frame and a sequence number being used for FEC, and makes re-numbering
-of the media packets unnecessary.
+restriction allows their depacketizer to distinguish between the case of a lost
+part of a frame and a sequence number being used for FEC, and allows their implementation
+to work without the unnecessary and awkward complication of rewriting sequence numbers.
 
+We updated our implementation -- all that was required was to remove the
+code which does the sequence number change.
 
 
 
 \subsection{Retransmissions}
 \label{rtx}
-RFC4585\cite{rfc4585} defines a type of RTCP Feedback Message (called NACK), with
-which a received can indicate to a sender that a specific RTP packet (or a set
-of packets) has not been received. Upon receipt of a NACK, a sender might attempt to
-retransmit the lost packets. 
+Our next task was to understand how \wrtc\ uses RTP retransmissions, and
+implement support for them in \lj. We found that \wrtc\ uses RTCP NACK messages
+(an RTCP Feedback Message type defined in RFC4585\cite{rfc4585}) from the
+receiving side, in order to notify the sender that a specific RTP packet (or a
+set of packets) has not been received. When a sender received a NACK message,
+it attempts to retransmit the lost packets (i.e. retransmits the lost packets,
+if they are still in its buffers).
 
-In \wrtc\ NACKs and retransmissions are used for
+The \wrtc\ code uses NACKs and retransmissions only for the
 video streams. Current versions do retransmissions by sending the exact same
 RTP packets (without even re-encrypting, which causes some SRTP implementations
 to falsely detect a replay attack), but there's planned switch to using the
 payload format defined in RFC4588\cite{rfc4588} to encapsulate retransmitted packets.
 
-Currently \lj\ does not support RFC4588, but we plan to implement it (as
-another \emph{PacketTransformer}). Retransmitted packets are not handled in a
-special way-- we just ensure that we have
-buffers of sufficient size so that retransmitted packets are not dropped as arriving too late (see section \ref{video-jb}).
+Currently we do not support RFC4588 in \lj. We plan to add support for it, in the form
+of a \emph{PacketTransformer}. It will strip the additional RFC4588 headers and pass on
+exact copies of the original packets. Then, in the rest of the library, we will handle the packets
+in the same way as we currently handle non-RFC4588 retransmission, which is nothing special:
+we just ensure that we have buffers of sufficient size so that we don't drop
+retransmitted packets because they arrive too late (see section
+\ref{video-jb}).
 
 \medskip
 When the recording application runs on the \jvb, requesting retransmissions with NACKs is not
@@ -710,7 +744,7 @@ originally developed by \emph{On2 Technologies}, which was acquired by
 reference implementation (\emph{libvpx}) under a BSD-like opensource
 license. They also provided a statement granting permission for royalty-free
 use of any of their patents used in
-\emph{libvpx}\footnote{http://www.webmproject.org/license/additional/}.
+\emph{libvpx}\cite{webm-ip-rights}.
 
 
 Both VP8 in general and \emph{libvpx} work exclusively with the I420 raw
@@ -734,22 +768,26 @@ provides a high-level overview of the use of VP8 with RTP.
     \label{vp8-scheme}
 \end{figure}
 
-\lj\ already has a VP8 implementation, which is used in the \j\ client and
+\lj\ already has a VP8 implementation, which we use in the \j\ client. It
 consists of four parts: an encoder and decoder (wrappers around \emph{libvpx}),
-a packetizer and a depacketizer. For the purposes of recording, we need 
-only a depacketizer. We found that the existing depacketizer is not compliant with
+a packetizer and a depacketizer. For the purposes of recording, we only need 
+a depacketizer. We found that the existing depacketizer is not compliant with
 the specification, and also not compatible with \wrtc. We decided to re-write it from scratch.
 
 \subsection{Depacketization}
 \label{depacketizer}
-The VP8 Payload Descriptor can be thought of as an extension to the RTP header. It has variable length (between 1 and 6 bytes) and contains, among others, the following fields:
+The VP8 Payload Descriptor can be thought of as an extension to the RTP header.
+It is included in the beginning of the RTP payload for every RTP packet with
+the VP8 format. It has variable length (between 1 and 6 bytes) and contains,
+among others, the following fields:
 \begin{itemize}
 \item \emph{S}-bit: start of VP8 partition, set only if the first byte of the payload of the packet is the first byte of a VP8 partition.
 \item \emph{PID}: Partition ID, specifies the ID of the VP8 parition to which the first byte of the payload of the packet belongs.
 \item \emph{PictureID}: A running index of frames, incremented by 1 for each subsequent VP8 frame.
 \end{itemize}
 
-Apart from this, the depacketizer also uses the following fields from the RTP header:
+When we do depacketization, we use the above three fields, as well as the following fielsa
+from the RTP header:
 \begin{itemize}
 \item \emph{Timestamp}: a 32-bit field specifying a generation timestamp of the payload. For VP8, all RTP packets from a given frame have the same timestamp.
 \item \emph{Sequence number}: An index of RTP packets.
@@ -762,16 +800,16 @@ check whether the buffer contains a full VP8 frame, and if it does we output
 it. Otherwise, we drop the buffer and start to collect packets for the next
 frame. In \lj, the depacketizer is part of the FMJ codec chain (see fig. \ref{lj-scheme}).
 
-In order to decide whether a received packet is from a new frame or not, the
-RTP timestamp and the \emph{PictureID} fields are used (if either don't match,
-then it's a new frame). 
+In order to decide whether a received packet is from a new frame or not, we use the
+RTP timestamp and the \emph{PictureID} fields.  If either of them don't match,
+we assume that the packet is from a new frame). 
 
-The \emph{PID} and \emph{S} fields from the VP8 Payload Descriptor allow us to
-detect the first packet from a frame -- the first, and only the first packet
-will have both the \emph{S}-bit set and \emph{PID} set to 0.
+We use the \emph{PID} and \emph{S} fields from the VP8 Payload Descriptor to
+detect the first packet of a frame-- the first, and only the first packet
+have both the \emph{S}-bit set and \emph{PID} set to 0.
 
-This allows us to easily check whether we have a full packet
-in the buffer or not: we have a full packet if: \emph{(i) we have the beginning
+This observations allow us to easily check whether we have a full packet
+in the buffer or not. We have a full packet if: \emph{(i) we have the beginning
 of a frame}; \emph{(ii) we have the end of a frame (a packet with the M-bit
 set)}; and \emph{(iii) we have
 all RTP sequence numbers inbetween}.
@@ -834,8 +872,8 @@ In order to use this API, however, the decoder needs to be provided with
 information about which parts (which VP8 partitions) are missing, and this
 information would be lost if we use \emph{ivf} or \emph{webm}. The
 disadvantages of this approach are the complexity that it brings, and the
-inflexibility with regards to the players -- no of the other tools which
-we use (like \emph{ffmpeg}) will be able to handle it, and we would need to
+inflexibility with regards to the players -- none of the other tools which
+we use (like \emph{ffmpeg}) would be able to handle it, and we would need to
 implement our own decoder.
 
 The \emph{webm}\cite{webm} format is a subset of
@@ -917,32 +955,36 @@ and 10 seconds.
 
 \subsection{Overview}
 \label{recording-video-overview}
-The components discussed above are pieced together in a \lj\ class named \emph{RecorderRtpImpl}\footnote{Because it implements the \emph{Recorder} interface, using RTP as opposed to a capture device as input},
+
+The components discussed above are pieced together in a \lj\ class named
+\emph{RecorderRtpImpl}\footnote{Because it implements the \emph{Recorder}
+interface, using RTP as opposed to a capture device as input},
 which we implemented specifically for recording video\footnote{Although we
 later adapted it to record audio as well.}.
 
 \emph{RecorderRtpImpl} takes its input in the form of RTP
 packets. It first demultiplexes the packets by their SSRC, and puts them in a jitter
-buffer, which is placed as the last element of the \emph{PacketTransformer} chain in figure \ref{lj-scheme}.
+buffer, which is placed as the last element of the \emph{PacketTransformer} chain.
 
 After they exit the jitter buffer, all packets
 are passed to an instance of FMJ which is configured to transcode from the
 "VP8/RTP" format, to the "VP8" (i.e. to do depacketization). FMJ does it's own
 demultiplexing and creates a VP8 depacketizer for each stream. The depacktizer
 is part of the FMJ codec chain (again, see figure \ref{lj-scheme}), and the
-internal FMJ jitter buffer is practically not used. The output of FMJ is in the
-form of a stream of VP8 compressed frames, which is passed to a
-\emph{WebmDataSink} instance, which produces the final \emph{webm} file.
+internal FMJ jitter buffer is practically not used. FMJ provides its output in the
+form of multiple \emph{DataSource}s (one for each stream), which represent, in
+essence, a stream of VP8 compressed frames. We take each of these
+\emph{DataSource}s and pass it to a \emph{WebmDataSink} instance, which
+produces the final \emph{webm} file.
 
-As soon as a new VP8 stream is detected, before its packets enter the jitter
-buffer, a keyframe is requested, by sending an RTCP FIR message. 
+As soon as we detect a new VP8 stream, before its packets enter the jitter
+buffer, we request a keyframe by sending an RTCP FIR message. 
 
 When the recording of a stream is stopped (either because of a user request
-via the API, or because an RTCP BYE message is received, or because of a
-timeout), the jitter buffer for the specific SSRC is emptied, its contents
-being processed.
+via the API, or because of an RTCP BYE message, or because of a
+timeout), we empty the jitter buffer for the specific SSRC, processing its contents.
 
-Using this process, each SSRC stream (with the VP8 format) is saved in a
+Using this process, we save each stream in a 
 separate \emph{webm} file.
 
 
@@ -966,10 +1008,11 @@ and works with fullband sound (sampled at 48000Hz). The average bitrate is confi
 and at 32kbps (the default in many applications which encode voice) it produces
 sound with remarkable quality.
 
-In a \jm\ conference, since all participants use full-fledged
-browsers, \emph{Opus} is always the codec being used.
+In a \jm\ conference the sound codec is always \emph{Opus}, because
+it produces the best quality among the available codecs and because
+all participants use full-fledged browsers which support it.
 
-\emph{Opus} supports frames of different size, but almost all applications (includeing \wrtc) use frames of 20ms. 
+\emph{Opus} supports frames of different size, but almost all applications (including \wrtc) use frames of 20ms. 
 
 \emph{Opus} has a build-in FEC mechanism which works differently than the
 RFC5109 mechanism discussed in section \ref{ulpfec}. If enabled for a packet,
@@ -995,7 +1038,7 @@ serves as a capture device, and
 can thus be recorded with the existing \lj\ recorder.
 
 \begin{figure}[h]
-    \includegraphics[width=10cm]{./pics/audio-mixer.eps}
+    \includegraphics[width=13cm]{./pics/audio-mixer.eps}
     \caption{The API of the \lj\ audio mixer}
     \label{audio-mixer}
 \end{figure}
@@ -1029,7 +1072,7 @@ formats.
 
 The existing code in \lj\ supports recording only in
 \emph{mp3} format. We decided to use this, for the time being, because it is
-relatively easy to transcode it to whatever format is needed in post-processing.
+relatively easy to transcode it in post-processing to whatever format is needed.
 
 For an audio stream, we use FMJ to decode (to a PCM format), and
 then encode it and save it in \emph{mp3} format.
@@ -1042,12 +1085,13 @@ individual presentation timestamps, an audio stream consists of just sound
 samples to be played one after the other. This means that if some samples are missing
 for some reason (e.g. because of a packet lost in the network), the resulting
 stream will be shorter than the original. 
-
+\medskip
 When recording a conference, which might last a relatively long time (possibly
 hours), the missing samples accumulate, and, when audio and video are merged in
 the end, this leads to audio and video drifting apart. In order to solve this
 problem, any gaps in the audio streams need to be repaired. 
 
+\medskip
 The \lj\ implementation of \emph{Opus} already repairs gaps on two levels while decoding.
 First, it tries to use FEC, which can be used when only a single packet is
 missing. Then, in case of 3 or less missing packets, it uses \emph{Opus}' PLC.
@@ -1082,13 +1126,15 @@ section \ref{synchronization}).
 
 
 \subsection{Overview}
-Initially we started with recording a mix of all audio streams, because that
-was the easiest solution. We later changed to recording streams individually.
-Each incoming audio stream (which is usually \emph{Opus}, but any of the codecs
+Initially we started with recording a mix of all audio streams.
+We then changed to recording streams individually, because we discovered
+limitations with the mixing approach.
+
+In the current implementation each incoming audio stream (which is usually \emph{Opus}, but any of the codecs
 supported in \lj\ can be used as well), is first decoded (and re-sampled to
 48000Hz, if necessary), then gaps are repaired by inserting silence. Then the
 stream is encoded and saved in an \emph{mp3} file. See figure \ref{audio-rec}
-for an illustration. If a gaps of more than 3 seconds is detected, we start
+for an illustration. If a gap of more than 3 seconds is detected, we start
 recording in a new file.
 
 \begin{figure}[h]
@@ -1100,10 +1146,10 @@ recording in a new file.
 This solution involves re-encoding and that makes it suboptimal -- it is 
 more computationally expensive than necessary and reduces the sound quality of the recording.
 A better solution would be, whenever possible, to record in a container format
-that does can accommodate the original format, and thus does not require
+that can accommodate the original format, and thus does not require
 transcoding or even decoding (as we do for video). For \emph{Opus}, a viable
-solution would be to use the ogg/opus format and we plan to implement it , see
-section \ref{ogg-opus}.
+solution would be to use the ogg/opus format and we plan to implement it (see
+section \ref{ogg-opus}).
 
 
 
@@ -1125,44 +1171,46 @@ We defined a JSON object, which we call a \emph{RecorderEvent}, and the
 metadata file consist of two arrays of such objects: one array for audio and
 one for video.
 
-All \emph{RecorderEvent}s have two mandatory fields: an event type, and an
-instant. The instant is an integer that represents the time at which the event
+All \emph{RecorderEvent}s have two mandatory fields: an event type ("type"), and an
+instant ("instant"). The instant is an integer that represents the time at which the event
 took place, in milliseconds. The instant has no global interpretation, it is only
 used to provide timing information relative between the events in a single
 metadata file. There are three types of events:
 
-%\begin{itemize}
-%\item RECORDING\_STARTED
-%\item RECORDING\_ENDED
-%\item SPEAKER\_CHANGED
-%\end{itemize}
 
 
+\begin{itemize}
 \smallskip
-RECORDING\_STARTED events signify that a recording began in a specific file
-(given by the "filename" field), at a specific time. They also contain an "ssrc" field, giving the
-SSRC associated with the recording. This field is used by the post-processing
-application to associate different files with a single participant, and is
+\item \textbf{RECORDING\_STARTED} \\
+We use these events to indicate that a recording has begun in a specific file
+(given by the "filename" field), at a specific time. These events have an "ssrc" field,
+which stores the SSRC associated with the recording. We use this field in the post-processing
+application to associate different files with a single participant, and it is
 necessary in case recording of a stream is split among more than one file.
-These events also contain a "mediaType" field used to distinguish between audio and
+
+RECORDING\_STARTED events also contain a "mediaType" field used to distinguish between audio and
 video, and two optional fields for additional information about the
-participant: "participantName" and "participantDescription". This is used in
-post-processing to overlay some text identifying the participant on top of
+participant: "participantName" and "participantDescription". We use this information
+in post-processing in order to overlay text identifying the participant on top of
 their video.
 
 \smallskip
-RECORDING\_ENDED events indicate that a particular recording ends at a specific
+\item \textbf{RECORDING\_ENDED} \\
+We use these events to indicate that a particular recording ends at a specific
 time. These events have "filename", "ssrc" and "mediaType" fields with the same meaning
 as for RECORDING\_STARTED events. The post-processing application uses these
 events to decide when to remove a certain audio or video stream from the final mix, but they
 are optional, because it can determine this from the actual media file.
 
 \smallskip
-SPEAKER\_CHANGED events are used to signal that the dominant speaker in the
-conference has changed (at a specific time). They include an "audioSsrc" field which specifies the
-SSRC of the audio stream of the new dominant speaker, and an "ssrc" field which specifies the SSRC of the
-video stream associated with the new dominant speaker. The post-processing application uses SPEAKER\_CHANGED
-events to change the video shown in full size.
+\item \textbf{SPEAKER\_CHANGED} \\
+We use these events to indicate that the dominant speaker in the conference has
+changed at a specific time. They include an "audioSsrc" field which specifies
+the SSRC of the audio stream of the new dominant speaker, and an "ssrc" field
+which specifies the SSRC of the video stream of the new dominant
+speaker. The post-processing application uses SPEAKER\_CHANGED events to change
+the video shown in full size.
+\end{itemize}
 
 A few examples of \emph{RecorderEvent}s follow, and appendix
 \ref{appendix-metadata} has the full contents of a metadata file from an
@@ -1200,15 +1248,15 @@ actual recording of a conference.
 \label{synchronization}
 As explained in the previous section, for each recorded audio and video file,
 we save a \emph{RecorderEvent}, and each such event has an "instant" field 
-containing an integer specifying milliseconds. This fields specifies the relative time
+containing an integer specifying milliseconds. This fields gives the relative time
 at which the audio or video should be included in the final mix. This section describes how
 the values of the "instant" fields are calculated, in order to provide
 proper synchronization between the audio and video of a participant and
 between different participants in the final result produced by the post-processing
 application.
 
-\subsection{Implementation}
-If we use a simple and naive method, for example, saving the local time when a
+\subsection{Synchronization between streams from a single source}
+If we use a simple and naïve method, for example, saving the local time when a
 recording starts, this would leave the audio and the video stream of a
 participant not synchronized, because of network jitter and differences in the
 time used for local processing. Therefore we would like to somehow use timing information,
@@ -1217,54 +1265,49 @@ which comes from a place as close as possible to the source of the media.
 According to its definition, the timestamp field in an RTP packet "reflects the sampling instant of the
 first octet in the RTP data packet"\cite{rtp}. When we record video, we know the
 RTP timestamp of the first frame written, and similarly for audio we know the RTP timestamp of the
-first packet which is included in the recording\footnote{The initial
+first packet included in the recording\footnote{The initial
 implementation of the recording didn't expose this information, we had to add
 it for the purpose of synchronization.}.
 
 We implemented a component, named \emph{Synchronizer}, which is responsible for translating
-RTP timestamps (coming from different RTP streams) into a common format.
+RTP timestamps (coming from different RTP streams) into a time on a common clock. For the common
+clock we used the local system clock, with standard UNIX time represented in milliseconds. We then use times acquired from the \emph{Synchronizer} directly when writing \emph{RecorderEvent}s.
 
-As the common format, we used the time provided by \emph{Java}'s\\
-\emph{System.currentTimeMillis()}, which gives the
-"difference, measured in milliseconds, between the current time and midnight,
-January 1, 1970 UTC)". We can then use this format directly when writing the
-\emph{RecorderEvent}s' instants.
-
+\medskip
 The RTP timestamp is a 32bit unsigned integer field, which uses a frequency
 specific to the media format. For example, \emph{Opus} uses a frequency of
 48000Hz, and \emph{VP8} uses 90000Hz. This means that two \emph{Opus} packets,
 generated exactly one second apart will have RTP timestamps differing by 48000.
-The initial RTP timestamp should be chosen at random.
+The initial RTP timestamp is chosen at random.
 
 When two RTP streams (for example one audio and one video) come from the same source
 (the same participant in a conference), their RTP timestamps are not directly related,
 but they share the same wall clock from which the RTP timestamps are generated.
 
-\paragraph{Saving mappings}
+\subsubsection{Saving mappings}
 RTCP Sender Report packets contain two timestamp fields. One is an RTP timestamp, and the
-other is a representation of the wall clock in NTP timestamp format\cite{ntp}. Both fields
+other is a representation of the source's wall clock in NTP timestamp format\cite{ntp}. Both fields
 represent the same instant, so we can think of the pair as a mapping. Having this mapping allows us to
 calculate the relative difference between RTP timestamps from different streams
 (provided that they come from the same source, of course).
 
-We save one such mapping of an RTP timestamp to and NTP timestamp for each SSRC.
+\medskip
+For each SSRC we save one such mapping of an RTP timestamp to an NTP timestamp.
+On the network the NTP timestamp is a 64-bit fixed-point number (with 32 bits
+for the whole part and 32 bits for the fraction) in seconds, but we locally
+save it as a \emph{double} (still in seconds).
 
-Then, for each source, we save a pair mapping an NTP timestamp, to a time on
-the local clock. It is important to only use one such mapping, because any
-consecutive mapping made are likely to not be accurate because of network
-jitter. To create such a mapping, we use the time of reception of an RTCP
+Then, for each source, we save a pair mapping an NTP timestamp to a local time.
+It is important to only use one such mapping, because if we make
+a second mapping, we are likely to get inaccurate results because of
+network jitter. To create such a mapping, we use the time of reception of an RTCP
 Sender Report and the NTP timestamp in said report.
 
-\paragraph{The calculation}
-\begin{figure}[h]
-    \includegraphics[width=0.9\textwidth]{./pics/diagram-sync.eps}
-    \caption{The mappings saved for a single source}
-    \label{diagram-sync}
-\end{figure}
-After we have a these two necessary mappings-- from the RTP clock of a specific
+\subsubsection{The calculation}
+After we have these two necessary mappings-- from the RTP clock of a specific
 SSRC to the source's clock, and from the source's clock to the local clock -- we
 can perform translation from the RTP clock to the local clock. The procedure is
-illustrated on figure \ref{diagram-sync}. The calculation is not complex. Using the
+illustrated on figure \ref{diagram-sync}. The calculation is not complex: using the
 notation from the figure, to translate the RTP timestamp $rtpX$ coming for
 SSRC $A$ to its corresponding local time $localX$ we calculate:
 
@@ -1273,25 +1316,30 @@ where $ntpX$ is the source's wallclock time corresponding to $rtpX$, for which w
 $$ntpX = ntp0 + (rtpX - rtp0)$$
 Simplifying: $$localX = local1 + (ntp0 - ntp1) + (rtpX - rtp0)$$
 
-Of course we have to take into account the different formats of the timestamps: RTP timestamps are integers with an SSRC-specific rate which are 32-bit and wrap, the local timestamp is an integer in milliseconds, and the
-NTP timestamps are 64-bit fixed-point numbers (with 32 bits for the whole part
-and 32 bits for the fraction) in seconds, which we locally store in a
-\emph{double}.
+Of course we have to take into account the different formats of the timestamps:
+RTP timestamps are integers with an SSRC-specific rate which are 32-bit and
+wrap, the local timestamp is an integer in milliseconds, and the
+NTP timestamps are (saved locally as) \emph{double}s in seconds.
 
-So the final calculation would be something like
+So the final calculation is something like
 $$localX = local1 + 1000 * (ntp0 - ntp1) + 1000 * diff(rtpX, rtp0) / rateA$$
 where $rateA$ is the RTP clock rate for the SSRC A, and $diff$ calculates the difference taking into account the wrap at $2^{32}$.
 
+\begin{figure}[h]
+    \includegraphics[width=0.9\textwidth]{./pics/diagram-sync.eps}
+    \caption{The mappings saved for a single source}
+    \label{diagram-sync}
+\end{figure}
 
-\paragraph{Identifying sources}
+\subsubsection{Identifying sources}
 By specification, two SSRCs can be recognized to come from the same source and thus share the same
 wallclock by looking at the CNAME field in RTCP SDES packets. This would allow for a very simple API for 
 the \emph{Synchronizer} in which it is fed RTCP packets, and recognizes which
 SSRCs are grouped together automatically. 
 
 However, there is a bug in
-Chrome\footnote{https://code.google.com/p/webrtc/issues/detail?id=3431}, which
-makes it use different CNAME for each SSRC, making it impossible to deduce
+Chrome\cite{chrome-cname-bug}, which
+makes it use different a CNAME for each SSRC, making it impossible to deduce
 which SSRCs come from the same source by only looking at RTP and RTCP packets.
 We implemented a workaround, in which we explicitly specify to the
 \emph{Synchronizer} identifiers for the source of each SSRC (and we get this
@@ -1299,22 +1347,22 @@ information from the signalling path).
 
 We support the CNAME mode of operation and plan to switch to it if the bug in Chrome is fixed.
 
-\paragraph{Overview}
+\subsubsection{Overview}
 The scheme just presented allows for audio and video to be very accurately synchronized, because 
 it takes into account timestamps sampled at the source of the streams. It has
-the drawback that it needs to be initialized before it can
-perform translation -- it usually needs an RTCP Sender Report packet. Before
-that, the calculation simply cannot be performed. This makes the usage of the
+the drawback that the \emph{Synchronizer} needs to be initialized (with an RTCP Sender Receive packet, and with an endpoint identifier currently coming from signalling) before it can
+perform translation for a given SSRC. Without this initialization,
+the calculation simply cannot be performed. This makes the usage of the
 \emph{Synchronizer} slightly inconvenient.
 
 
 \subsection{Synchronization between different sources}
 When streams come from different sources we have no mechanism which allows us
-to synchronize them. As explained in the previous section, we keep a single
+to synchronize them with absolute accuracy. As explained in the previous section, we keep a single
 mapping of a time of the source's wall clock to a local time, for each source.
 We save these mappings independently. We perform the measurement of the local
 time as soon as possible (as soon as the packet is received by the recorder),
-in order to minimize the effects of varying time used for local processing.
+in order to minimize the effects of the varying time used for local processing.
 
 These same limitations apply for clients participating in a conference, trying to
 render multiple incoming streams together.
@@ -1350,7 +1398,7 @@ also open a WebRTC data channel to the \jvb\ and use the events received there,
 instead of doing DSI itself.}, and changes of
 the dominant speaker are saved as metadata.
 
-\subsection{Implementation}
+\subsection{Implementing dominant speaker identification}
 Our first task was to design and implement an API and a simple, non-optimized
 algorithm, which we could later improve upon. 
 
@@ -1359,13 +1407,12 @@ work well in a conversation with two people. It only takes into account the
 audio levels (that is, the loudness of the sound) of the different streams. It
 works like this:
 
-At all times one stream is considered active, while the rest are considered
-'competing'. All streams have an associated score. When new audio levels are
-measured for a stream its score is recomputed,
-and the scores of all streams are examined in order to determine if one of
-the competing streams should replace the then active stream.
+At all times we consider one stream "active", and while the rest--
+"competing". With each stream we associate a score. When we measure new audio levels for a stream,
+we recompute its score, and then examine the scores of the streams in order to determine if one of the
+competing streams should replace the active stream.
 
-In order to be 'eligible' to replace the active stream, a competing stream has to:
+In order to be "eligible" to replace the active stream, a competing stream has to:
 \begin{enumerate}
     \item Have a score at least $C$ times as much as the score of the currently active stream.
     \item Have score at least MIN\_SCORE.
@@ -1383,7 +1430,7 @@ The values for the parameters are very dependent on the exact rules for scoring.
 We chose the values based on a few uncontrolled experiments we performed. We used
 MIN\_ACTIVE $= 1000$ and $C = 1.15$ (MIN\_SCORE is too arbitrary to deserve mention).
 
-Scores are computed as follows: $C_{recent} * avg(0, N_1) + C_{older} * avg(N_1, N_2)$
+We compute scores as follows: $C_{recent} * avg(0, N_1) + C_{older} * avg(N_1, N_2)$
 where $avg(X_1, X_2)$ is the average audio level for the interval $[now-X_2,
 now-X_1)$ (in milliseconds). 
 
@@ -1402,7 +1449,7 @@ produce sound with varying loudness (and that this variation can be detected
 with the 20ms resolution that we use). However, we have not yet tried to solve
 this problem.
 
-Lyubomir Marinov has now taken over this task, and has implemented an improved algorithm that more closely resembles the
+Lyubomir Marinov, another \bj\ and \j\ team member has now taken over this task, and has implemented an improved algorithm that more closely resembles the
 one proposed in \cite{volfin2012}. However, his implementation still relies only on
 "audio levels" and not on other analysis of the audio samples. This offers a significant advantage
 in our use case, because this information (the "audio level" for a particular RTP packet) is already
@@ -1411,25 +1458,35 @@ This allows \jvb\ to do DSI very efficiently, without the need to decode the rec
 
 
 
+\clearpage
 \section{Conclusion}
 \label{conclusion}
-During the last six months we have successfully managed to implement a viable recording solution 
-We have also learned the shortcoming of some of our initial ideas, such as live audio mixing and post-processing via.
-optimal quality and scalability characteristichs. 
+During the last five-and-a-half months we have worked on the implementation of
+a system for recording video conferences. We have have successfully brought
+multiple non-trivial components from the design stage to a final working implementation. We
+have also learned the shortcomings of some of our initial ideas 
+and thus gathered valuable practical experiences.
 
-We have gathered valuable experience.
+The work on the recording system has been, to a large extent, funded by the \emph{Comcast
+Cable} internet service provider, now a \bj\ customer. The implemented
+procedures therefore allow \bj\ to assist \emph{Comcast} in delivering rich
+real-time communication services to its subscribers.
 
-- de ce que ca a apporte a l’entreprise (realisation)
-- de ce que ca vous a apporte (acquisition de competences)
+Currently, the project is in a working state-- recordings are produced as
+described in the previous chapters, in a format which allows for their
+successful post-processing. However there are further improvements and
+optimizations which we can do, and plan to do in the near future. These are
+discussed in the next section.
+
 
 \section{Future work}
 \label{future-work}
 The recording system examined in this document is now fully functional,
-but there there's room for many improvements and optimizations. This section
-discusses features planned for the near future.
+but there's room for many improvements and optimizations. This section
+discusses some of the work planned for the near future.
 
-\subsection{RTP Retransmissions}
-There are two things related to retransmissions which need to be implemented.
+\subsection{RTP retransmissions}
+As discussed in section \ref{rtx}, there are two things related to RTP retransmissions which need to be implemented.
 Handling of packets retransmitted using the format defined in RFC4588 needs to
 be added, because the next release of Chrome/Chromium is expected to use it.
 We also need to be able to request retransmission by use of RTCP NACK packets,
@@ -1438,15 +1495,19 @@ application (as opposed to on \jvb).
 
 \subsection{Recording audio in \emph{ogg/opus} format}
 \label{ogg-opus}
-The current procedure for recording and post-processing audio transcodes the stream
-twice. First, the stream is transcoded from \emph{Opus} to \emph{mp3} while recording.
-Then in post-processing it is transcoded to \emph{vorbis}. We could avoid one reencoding
+Currently, when we record and post-process audio, we perform two transcoding
+operations on the stream.
+First, we transcode from \emph{Opus} to \emph{mp3} while recording, and then we transcode 
+to \emph{vorbis} in post-processing. We can avoid one of the transcodings
 by recording audio directly in a container format which supports \emph{Opus}.
+This would both make the recording procedure more efficient, and (slightly)
+improve the quality of the final sound.
 
-We have planned to implement recording in the \emph{ogg/opus} format. One difficulty
-that we face, which we don't yet know how to solve is handling of FEC in this
+We are planning to implement this idea by recording directly in the
+\emph{ogg/opus} format (without decoding). One difficulty
+that we face, which we don't yet know how to solve, is the handling of FEC in this
 case. In the current implementation we control the \emph{Opus} decoder and we
-repair gaps using FEC, whenever possibly. The \emph{ogg/opus} format supports
+repair gaps using FEC, whenever possible. The \emph{ogg/opus} format supports
 filling gaps, but the specifications\cite{ogg,ogg-opus} do not define a way to
 handle FEC, and the currently available tools don't support it.
 
@@ -1458,7 +1519,8 @@ formats such as RED and RTX.
 
 \subsection{Improving post-processing}
 The post-processing application (see appendix \ref{jipopro}) has limited performance, and
-our examinations so far show that it would require significant changes to allow the 
+our examinations so far show that it would require significant changes to allow
+it to work sufficiently fast. We are planning a major re-design.
 
 
 
@@ -1472,8 +1534,8 @@ our examinations so far show that it would require significant changes to allow 
 specifically for post-processing recordings for \jm. It was developed in parallel with
 the recording implementation discussed in this document, and is closely tied
 with the formats for media and metadata produced by that system. \emph{Jipopro}
-is written in Java, but uses external applications for many of its tasks. It's
-main author is Vladimir Marinov.
+is written in Java, but uses external applications for many of its tasks. It was
+mainly developed by Vladimir Marinov, then in \bj.
 
 On a very high level, \emph{jipopro} does four things:
 \begin{enumerate}
@@ -1487,7 +1549,7 @@ The audio and video processing are independent.
 
 
 \subsection{Video}
-For all video handling, \emph{jipopro} uses \emph{ffmpeg}\footnote{https://ffmpeg.org}.
+For all video handling, \emph{jipopro} uses \emph{ffmpeg}\cite{ffmpeg}.
 
 First every input \emph{webm} file is transcoded to an MJPEG file with a static
 frame rate (25fps by default). Then, a timeline of events is constructed
@@ -1513,7 +1575,7 @@ Then the file is transcoded to a \emph{webm} file.
 
 
 \subsection{Audio}
-For audio handing we use \emph{sox}\footnote{http://sox.sourceforge.net/sox.html}.
+For audio handing we use \emph{sox}\cite{sox}.
 First all \emph{mp3} files are converted to \emph{wav} format and padded, if
 necessary. All the resulting files are mixed together in a single \emph{wav}
 file.
