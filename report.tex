@@ -1129,8 +1129,9 @@ one for video.
 
 All \emph{RecorderEvent}s have two mandatory fields: an event type, and an
 instant. The instant is an integer that represents the time at which the event
-took place, in milliseconds. No specific clock is used: only the relative time between
-the events in a single metadata file is taken into account. There are three types of events:
+took place, in milliseconds. The instant has no global interpretation, it is only
+used to provide timing information relative between the events in a single
+metadata file. There are three types of events:
 
 %\begin{itemize}
 %\item RECORDING\_STARTED
@@ -1199,34 +1200,126 @@ actual recording of a conference.
 
 \section{Synchronization}
 \label{synchronization}
---how is audio synchronized
---how is video synchronize
-
---how to time them...
-Purpose: audio and video from a single participant need to be perfectly synchronized. Need to use the timestamps from the source, because of network jitter. 
-
-How it works: RTCP sender reports and the info they contain.
-
-Can use CNAME, but chrome has a bug (link). We use "endpoint" identifiers obtained from signalling instead.
-
+As explained in the previous section, for each recorded audio and video file,
+we save a \emph{RecorderEvent}, and each such event has an "instant" field 
+containing an integer specifying milliseconds. This fields specifies the relative time
+at which the audio or video should be included in the final mix. This section describes how
+the values of the "instant" fields are calculated, in order to provide
+proper synchronization between the audio and video of a participant and
+between different participants in the final result produced by the post-processing
+application.
 
 \subsection{Implementation}
-The mappings that we have saved for each SSRC and each endpoint are illustrated
-on figure \ref{diagram-sync}. Given the previously saved values for $rtp0,
-ntp0, ntp1$ and $local1$, and given the RTP timestamp $rtpX$ for SSRC A, we calculate the local
-time $localX$ which corresponds to $rtpX$:
+If we use a simple and naive method, for example, saving the local time when a
+recording starts, this would leave the audio and the video stream of a
+participant not synchronized, because of network jitter and differences in the
+time used for local processing. Therefore we would like to somehow use timing information,
+which comes from a place as close as possible to the source of the media.
+
+According to its definition, the timestamp field in an RTP packet "reflects the sampling instant of the
+first octet in the RTP data packet"\cite{rtp}. When we record video, we know the
+RTP timestamp of the first frame written, and similarly for audio we know the RTP timestamp of the
+first packet which is included in the recording\footnote{The initial
+implementation of the recording didn't expose this information, we had to add
+it for the purpose of synchronization.}.
+
+We implemented a component, named \emph{Synchronizer}, which is responsible for translating
+RTP timestamps (coming from different RTP streams) into a common format.
+
+As the common format, we used the time provided by \emph{Java}'s\\
+\emph{System.currentTimeMillis()}, which gives the
+"difference, measured in milliseconds, between the current time and midnight,
+January 1, 1970 UTC)". We can then use this format directly when writing the
+\emph{RecorderEvent}s' instants.
+
+The RTP timestamp is a 32bit unsigned integer field, which uses a frequency
+specific to the media format. For example, \emph{Opus} uses a frequency of
+48000Hz, and \emph{VP8} uses 90000Hz. This means that two \emph{Opus} packets,
+generated exactly one second apart will have RTP timestamps differing by 48000.
+The initial RTP timestamp should be chosen at random.
+
+When two RTP streams (for example one audio and one video) come from the same source
+(the same participant in a conference), their RTP timestamps are not directly related,
+but they share the same wall clock from which the RTP timestamps are generated.
+
+\paragraph{Saving mappings}
+RTCP Sender Report packets contain two timestamp fields. One is an RTP timestamp, and the
+other is a representation of the wall clock in NTP timestamp format\cite{ntp}. Both fields
+represent the same instant, so we can think of the pair as a mapping. Having this mapping allows us to
+calculate the relative difference between RTP timestamps from different streams
+(provided that they come from the same source, of course).
+
+We save one such mapping of an RTP timestamp to and NTP timestamp for each SSRC.
+
+Then, for each source, we save a pair mapping an NTP timestamp, to a time on
+the local clock. It is important to only use one such mapping, because any
+consecutive mapping made are likely to not be accurate because of network
+jitter. To create such a mapping, we use the time of reception of an RTCP
+Sender Report and the NTP timestamp in said report.
+
+\paragraph{The calculation}
+\begin{figure}[h]
+    \includegraphics[width=0.9\textwidth]{./pics/diagram-sync.eps}
+    \caption{The mappings saved for a single source}
+    \label{diagram-sync}
+\end{figure}
+After we have a these two necessary mappings-- from the RTP clock of a specific
+SSRC to the source's clock, and from the source's clock to the local clock -- we
+can perform translation from the RTP clock to the local clock. The procedure is
+illustrated on figure \ref{diagram-sync}. The calculation is not complex. Using the
+notation from the figure, to translate the RTP timestamp $rtpX$ coming for
+SSRC $A$ to its corresponding local time $localX$ we calculate:
+
 $$localX = local1 + (ntpX - ntp1)$$ 
 where $ntpX$ is the source's wallclock time corresponding to $rtpX$, for which we have
 $$ntpX = ntp0 + (rtpX - rtp0)$$
 Simplifying: $$localX = local1 + (ntp0 - ntp1) + (rtpX - rtp0)$$
-Of course we have to take into account the different formats of the timestamps.
 
-\begin{figure}[h]
-    \includegraphics[width=0.9\textwidth]{./pics/diagram-sync.eps}
-    \caption{The mappings XXX}
-    \label{diagram-sync}
-\end{figure}
+Of course we have to take into account the different formats of the timestamps: RTP timestamps are integers with an SSRC-specific rate which are 32-bit and wrap, the local timestamp is an integer in milliseconds, and the
+NTP timestamps are 64-bit fixed-point numbers (with 32 bits for the whole part
+and 32 bits for the fraction) in seconds, which we locally store in a
+\emph{double}.
 
+So the final calculation would be something like
+$$localX = local1 + 1000 * (ntp0 - ntp1) + 1000 * diff(rtpX, rtp0) / rateA$$
+where $rateA$ is the RTP clock rate for the SSRC A, and $diff$ calculates the difference taking into account the wrap at $2^{32}$.
+
+
+\paragraph{Identifying sources}
+By specification, two SSRCs can be recognized to come from the same source and thus share the same
+wallclock by looking at the CNAME field in RTCP SDES packets. This would allow for a very simple API for 
+the \emph{Synchronizer} in which it is fed RTCP packets, and recognizes which
+SSRCs are grouped together automatically. 
+
+However, there is a bug in
+Chrome\footnote{https://code.google.com/p/webrtc/issues/detail?id=3431}, which
+makes it use different CNAME for each SSRC, making it impossible to deduce
+which SSRCs come from the same source by only looking at RTP and RTCP packets.
+We implemented a workaround, in which we explicitly specify to the
+\emph{Synchronizer} identifiers for the source of each SSRC (and we get this
+information from the signalling path).
+
+We support the CNAME mode of operation and plan to switch to it if the bug in Chrome is fixed.
+
+\paragraph{Overview}
+The scheme just presented allows for audio and video to be very accurately synchronized, because 
+it takes into account timestamps sampled at the source of the streams. It has
+the drawback that it needs to be initialized before it can
+perform translation -- it usually needs an RTCP Sender Report packet. Before
+that, the calculation simply cannot be performed. This makes the usage of the
+\emph{Synchronizer} slightly inconvenient.
+
+
+\subsection{Synchronization between different sources}
+When streams come from different sources we have no mechanism which allows us
+to synchronize them. As explained in the previous section, we keep a single
+mapping of a time of the source's wall clock to a local time, for each source.
+We save these mappings independently. We perform the measurement of the local
+time as soon as possible (as soon as the packet is received by the recorder),
+in order to minimize the effects of varying time used for local processing.
+
+These same limitations apply for clients participating in a conference, trying to
+render multiple incoming streams together.
 
 
 
@@ -1312,11 +1405,11 @@ with the 20ms resolution that we use). However, we have not yet tried to solve
 this problem.
 
 Lyubomir Marinov has now taken over this task, and has implemented an improved algorithm that more closely resembles the
-one proposed in \cite{volfin2012}. However, his implementation still relies on
+one proposed in \cite{volfin2012}. However, his implementation still relies only on
 "audio levels" and not on other analysis of the audio samples. This offers a significant advantage
 in our use case, because this information (the "audio level" for a particular RTP packet) is already
 calculated by the sending client, and is included in the RTP packet in the format specified in RFC6464\cite{rfc6464}.
-This allows \jvb\ to do DSI very cheaply, without the need to decode the received audio streams.
+This allows \jvb\ to do DSI very efficiently, without the need to decode the received audio streams.
 
 
 
@@ -1359,8 +1452,16 @@ repair gaps using FEC, whenever possibly. The \emph{ogg/opus} format supports
 filling gaps, but the specifications\cite{ogg,ogg-opus} do not define a way to
 handle FEC, and the currently available tools don't support it.
 
+\subsection{Support for payload type mappings}
+The current implementation uses predefined mappings for the RTP payload type
+numbers. We need to implement support for set them dynamically. One complication arises,
+because we currently do not support re-writing of the payload type numbers for encapsulated
+formats such as RED and RTX.
+
 \subsection{Improving post-processing}
-postprocessing
+The post-processing application (see appendix \ref{jipopro}) has limited performance, and
+our examinations so far show that it would require significant changes to allow the 
+
 
 
 
