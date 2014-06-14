@@ -53,6 +53,7 @@
 \pagestyle{empty}
 \newpage
 
+%\cleardoublepage
 
 % La table des matières
 \parskip=0pt
@@ -73,10 +74,11 @@ This document describes the implementation of various media recording-related
 features in a modern video conferencing application based on WebRTC. We start
 by introducing the work environment and the various technological components
 involved in the project. We then proceed with a detailed description of the
-different stages of the project including the way audio and video data is
-transported over the network, the way it is persistently stored, synchronized,
-and the way multiple audio and video files are organized and combined in a
-single flat audio/video file. The work on the project is still actively
+different stages of the process including the way audio and video data is
+transported over the network, the way it is persistently stored, 
+the way multiple audio and video files are organized and combined in a
+single flat audio/video file, and how synchronization is ensured.
+The work on the project is still actively
 pursued and we therefore also present a number of planned future steps and
 improvements that will likely be implemented in the near
 future.
@@ -98,26 +100,22 @@ future.
 The ever decreasing cost of bandwidth and processing resources have in the recent years
 made multi-party video conferencing over the internet viable for personal use. The advent of the WebRTC
 technology that adds audio/video communication capabilities to web browsers,
-has made the development of conferencing application (or the addition of
+has made the development of conferencing applications (or the addition of
 conferencing features to existing applications) simpler than ever before.
 
 The work described in this document is about the development of video recording features
-within \jm: an existing WebRTC video conferencing application. Through
+within \jm: an existing WebRTC video conferencing application. Throughout
 the rest of this section we introduce the working environment, the most
 important standards and software products used in \jm, and we discuss the
 general concept of recording a conference. In sections \ref{recording-video} through \ref{dsd} we examine specific
-parts of the recording process in detail. In section \ref{future-work} we
+parts of the recording process in detail. 
+In section \ref{conclusion} we review accomplished work, and 
+in section \ref{future-work} we
 discuss new features and optimizations to existing features which we plan to
-develop in the near future. In section \ref{conclusion} we review accomplished work.
+develop in the near future. 
 
 
-XXX Problematique, objectifs
 
-XXX mise en relation des besoins de l’entreprise et des objectifs des missions mise en perspective de ces missions : en quoi cela apporte qq chose cahier des charges
-
-XXX mode de travail (avec qui ? qui fait quoi ?)
-
-XXX planning
 \subsection{\bj}
 XXX expand?
 
@@ -186,7 +184,7 @@ can be simple SIP clients). Since the end of 2013 \jvb\ supports ICE and is WebR
 One of the latest additions to the \j\ family is
 \jm\footnote{\url{https://jitsi.org/Projects/JitsiMeet}}. This is a WebRTC
 application, which runs completely within a browser and creates a video
-conference using a \jvb\ instance to relay the media.
+conference using a \jvb\ instance to relay the media. \jm\ is discussed in more detail in \ref{intro-jm}.
 
 
 
@@ -225,7 +223,7 @@ used for all practical compatibility testing, making it the de-facto reference i
 \subsection{XMPP and Jingle}
 Extensible Messaging and Presence Protocol (XMPP)\cite{rfc6120} is a mature,
 XML-based protocol which allows endpoints
-to exchange messages in near real-time. The core XMPP protocol only covers instant messaging (that is the exchange of
+to exchange messages in near real-time. The core XMPP protocol only covers instant messaging (that is, the exchange of
 text messages meant to be read by humans), but there are a variety of extensions that allow the protocol
 to cover a wide range of use cases. Many such extensions are published as XMPP Extension Protocols (XEPs), and there are XEPs for
 group chats, user avatars, file transfers, account registration, transporting
@@ -283,7 +281,7 @@ transport information (i. e. the list of ICE candidates) obtained from $jvb$
 instead of its own. When the participants accept the Jingle sessions, they in
 effect perform ICE and establish direct RTP sessions with $jvb$.
 
-The resulting connections for signalling and media are depicted in Figures
+The resulting connections for signalling and media are depicted in figures
 \ref{jitmeet-sig} and \ref{jitmeet-med} respectively.
 
 
