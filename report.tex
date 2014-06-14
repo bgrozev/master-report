@@ -917,7 +917,7 @@ number of packets, and not to a given length of time. We used a default size
 of 300 packets, since we observed that this usually corresponds to between 3
 and 10 seconds.
 
-\subsection{An overview of the whole process}
+\subsection{Overview}
 \label{recording-video-overview}
 The components discussed above are pieced together in a \lj\ class named \emph{RecorderRtpImpl}\footnote{Because it implements the \emph{Recorder} interface, using RTP as opposed to a capture device as input},
 which we implemented specifically for recording video\footnote{Although we
@@ -1259,7 +1259,7 @@ also open a WebRTC data channel to the \jvb\ and use the events received there,
 instead of doing DSI itself.}, and changes of
 the dominant speaker are saved as metadata.
 
-\paragraph*{Implementation}
+\subsection{Implementation}
 Our first task was to design and implement an API and a simple, non-optimized
 algorithm, which we could later improve upon. 
 
@@ -1322,25 +1322,44 @@ This allows \jvb\ to do DSI very cheaply, without the need to decode the receive
 
 \section{Conclusion}
 \label{conclusion}
-XXX Crap, I almost forgot about this! Crap!
+During the last six months we have successfully managed to implement a viable recording solution 
+We have also learned the shortcoming of some of our initial ideas, such as live audio mixing and post-processing via.
+optimal quality and scalability characteristichs. 
 
-During the last 6 m we have succ managed to impl a viable recording solution optimal quality and scalability characteristichs. We have also learned the shortcoming of some of our initial ideas, such as live audio mixing and post-processing.
-
-Gathered valuale experience
+We have gathered valuable experience.
 
 - de ce que ca a apporte a l’entreprise (realisation)
 - de ce que ca vous a apporte (acquisition de competences)
 
-\section{future work}
+\section{Future work}
 \label{future-work}
-RTX with 4588
+The recording system examined in this document is now fully functional,
+but there there's room for many improvements and optimizations. This section
+discusses features planned for the near future.
 
-requesting RTX with NACK
+\subsection{RTP Retransmissions}
+There are two things related to retransmissions which need to be implemented.
+Handling of packets retransmitted using the format defined in RFC4588 needs to
+be added, because the next release of Chrome/Chromium is expected to use it.
+We also need to be able to request retransmission by use of RTCP NACK packets,
+in order to improve video quality when the recorder is run as a separate
+application (as opposed to on \jvb).
 
-recording in ogg/opus
-
-\subsection{Recording audio directly in ogg/opus format}
+\subsection{Recording audio in \emph{ogg/opus} format}
 \label{ogg-opus}
+The current procedure for recording and post-processing audio transcodes the stream
+twice. First, the stream is transcoded from \emph{Opus} to \emph{mp3} while recording.
+Then in post-processing it is transcoded to \emph{vorbis}. We could avoid one reencoding
+by recording audio directly in a container format which supports \emph{Opus}.
+
+We have planned to implement recording in the \emph{ogg/opus} format. One difficulty
+that we face, which we don't yet know how to solve is handling of FEC in this
+case. In the current implementation we control the \emph{Opus} decoder and we
+repair gaps using FEC, whenever possibly. The \emph{ogg/opus} format supports
+filling gaps, but the specifications\cite{ogg,ogg-opus} do not define a way to
+handle FEC, and the currently available tools don't support it.
+
+\subsection{Improving post-processing}
 postprocessing
 
 
