@@ -1480,13 +1480,12 @@ main author is Vladimir Marinov.
 On a very high level, \emph{jipopro} does four things:
 \begin{enumerate}
 \item Reads a metadata file.
-\item Process video producing a single file.
-\item Process audio producing a single file.
+\item Processes video, producing a single file.
+\item Processes audio, producing a single file.
 \item Merges the audio and video files together.
 \end{enumerate}
 
-The audio and video processing are independent and could be done in parallel
-(but are not, because the audio processing takes a negligible amount of time).
+The audio and video processing are independent.
 
 
 \subsection{Video}
@@ -1494,12 +1493,20 @@ For all video handling, \emph{jipopro} uses \emph{ffmpeg}\footnote{https://ffmpe
 
 First every input \emph{webm} file is transcoded to an MJPEG file with a static
 frame rate (25fps by default). Then, a timeline of events is constructed
-according to the metadata. The events divide the timeline into sections.
+according to the metadata. The events divide the timeline into sections. Figure \ref{jipopro-video} shows an example.
 
+\begin{figure}[h]
+    \includegraphics[width=10cm]{./pics/jipopro-video.eps}
+    \caption{A representation of the process of combining videos. There are 5 sections,
+    separated by vertical lines. The shared regions represent the dominant
+    speaker.}
+    \label{jipopro-video}
+\end{figure}
 For each section, a list of participants, one of whom is active, is maintained.
-The sections are then processed (in parallel): a given length of video is taken
+The sections are then processed: a "slice" of video is taken
 (with a specific offset) from the MJPEG file for every participant, and the
-obtained video are merged together and saved in an MJPEG file for the section.
+obtained videos (all with the same length) are decoded, combined together (overlaid)
+and encoded in an MJPEG file again.
 
 After all sections have been processed, they are concatenated together, resulting in
 a single MJPEG file.
@@ -1515,7 +1522,7 @@ file.
 
 \begin{figure}[h]
     \includegraphics[width=10cm]{./pics/audio-popro.eps}
-    \caption{XXX}
+    \caption{Post-processing for audio.}
 \end{figure}
 
 
@@ -1524,11 +1531,23 @@ The resulting audio (a single \emph{wav} file) and video (a single \emph{webm} f
 are combined using \emph{ffmpeg}. The audio is automatically transcoded to \emph{vorbis}, because it is the codec supported by \emph{webm}\footnote{Although the specification is being extended to allow for Opus}.
 
 \subsection{Performance}
-performance
+The running time of the application depends on a variety of parameters: the
+number of participants, the chosen frame rate and resolution, the number of
+SPEAKER\_CHANGED events.
+
+The process was optimized by running certain tasks-- the initial "decoding",
+and the section processing and concatenation-- in parallel (in different
+operating system processes). 
+
+We observed that for a particular recording with 4
+participants the running time, after all optimizations,
+was about 1.3 times longer than the length of the conference. 
+
+The process is not very efficient and performs at least 2 redundant
+transcodings. We found no other way to optimizing it without a major re-design,
+which we are planning to do in the future.
 
 
-\subsection{Future work}
-future
 
 
 
@@ -1656,24 +1675,3 @@ future
 
 
 \end{document}
-
-XXX: Relaying audio consumes more bandwidth, but is less computationally intensive for \jvb.
-
-%difficulties
-\paragraph*{Audio streams}
-For audio streams we decided to do the mixing in the application (as opposed to
-saving each stream to a separate file and mixing them later). This is because
-\lj\ already has all the necessary components. 
-
-
-\section{Conclusion}
-During the internship so far, I have studied in detail how the media transport layers in
-a \jm\ conference work, and have implemented support for some of the protocols in \lj. I have also
-helped with the design and implemented significant parts of a system which allows the recording of the
-audio and video in a \jm\ conference.
-
-During the rest of the internship I hope to improve the existing code and to study in more depth
-the problem of dominant speaker detection.
-
-\end{document}
-
